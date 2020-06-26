@@ -1,11 +1,11 @@
 
 jar {
-  baseName 'ethsigner-commandline'
+  archiveBaseName = 'ethsigner-commandline'
   manifest {
     attributes(
-      'Specification-Title': baseName,
+      'Specification-Title': archiveBaseName,
       'Specification-Version': project.version,
-      'Implementation-Title': baseName,
+      'Implementation-Title': archiveBaseName,
       'Implementation-Version': calculateVersion()
       )
   }
@@ -13,22 +13,29 @@ jar {
 
 dependencies {
 
-  implementation project(':ethsigner:signing-api')
   implementation project(':ethsigner:core')
-
+  implementation 'tech.pegasys.signers.internal:signing-secp256k1-api'
+  implementation 'tech.pegasys.signers.internal:signing-secp256k1-impl'
   implementation 'info.picocli:picocli'
   implementation 'com.google.guava:guava'
-
   implementation 'org.apache.logging.log4j:log4j-api'
-  runtime 'org.apache.logging.log4j:log4j-core'
-  runtime 'org.apache.logging.log4j:log4j-slf4j-impl'
+  implementation 'org.apache.logging.log4j:log4j-core'
 
-  testImplementation 'junit:junit'
+  runtimeOnly 'org.apache.logging.log4j:log4j-slf4j-impl'
+
+  testImplementation 'org.junit.jupiter:junit-jupiter-api'
+  testImplementation 'org.junit.jupiter:junit-jupiter-params'
   testImplementation 'org.assertj:assertj-core'
-  testImplementation 'org.mockito:mockito-core'
+  testImplementation 'org.mockito:mockito-junit-jupiter'
+
+  testRuntimeOnly 'org.junit.jupiter:junit-jupiter-engine'
 
   integrationTestImplementation 'io.rest-assured:rest-assured'
   integrationTestImplementation 'org.assertj:assertj-core'
   integrationTestImplementation 'org.mock-server:mockserver-netty'
   integrationTestImplementation 'org.mockito:mockito-core'
+}
+
+artifacts {
+  testSupportArtifacts testSupportJar
 }

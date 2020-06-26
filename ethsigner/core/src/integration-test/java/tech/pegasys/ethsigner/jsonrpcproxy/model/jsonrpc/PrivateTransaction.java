@@ -12,34 +12,43 @@
  */
 package tech.pegasys.ethsigner.jsonrpcproxy.model.jsonrpc;
 
+import static java.util.Collections.singletonList;
+import static tech.pegasys.ethsigner.jsonrpcproxy.model.jsonrpc.EeaSendTransaction.DEFAULT_VALUE;
+import static tech.pegasys.ethsigner.jsonrpcproxy.model.jsonrpc.EeaSendTransaction.PRIVACY_GROUP_ID;
+import static tech.pegasys.ethsigner.jsonrpcproxy.model.jsonrpc.EeaSendTransaction.PRIVATE_FOR;
+import static tech.pegasys.ethsigner.jsonrpcproxy.model.jsonrpc.EeaSendTransaction.PRIVATE_FROM;
+import static tech.pegasys.ethsigner.jsonrpcproxy.model.jsonrpc.EeaSendTransaction.UNLOCKED_ACCOUNT;
+
 import java.util.List;
+import java.util.Optional;
 
-import com.fasterxml.jackson.annotation.JsonInclude;
-
-@JsonInclude(JsonInclude.Include.NON_NULL)
 public class PrivateTransaction {
-  private final String from;
-  private final String to;
-  private final String gasPrice;
-  private final String gas;
-  private final String value;
-  private final String data;
-  private final String nonce;
-  private final String privateFrom;
-  private final List<String> privateFor;
-  private final String restriction;
+  // Values are held using a value holder as an Optional cannot contain a null value and we want to
+  // represent missing values using Optional.empty, null values and non-null values
+  private final Optional<ValueHolder<String>> from;
+  private final Optional<ValueHolder<String>> nonce;
+  private final Optional<ValueHolder<String>> gasPrice;
+  private final Optional<ValueHolder<String>> gas;
+  private final Optional<ValueHolder<String>> to;
+  private final Optional<ValueHolder<String>> value;
+  private final Optional<ValueHolder<String>> data;
+  private final Optional<ValueHolder<String>> privateFrom;
+  private final Optional<ValueHolder<List<String>>> privateFor;
+  private final Optional<ValueHolder<String>> restriction;
+  private final Optional<ValueHolder<String>> privacyGroupId;
 
   public PrivateTransaction(
-      final String from,
-      final String nonce,
-      final String gasPrice,
-      final String gas,
-      final String to,
-      final String value,
-      final String data,
-      final String privateFrom,
-      final List<String> privateFor,
-      final String restriction) {
+      final Optional<ValueHolder<String>> from,
+      final Optional<ValueHolder<String>> nonce,
+      final Optional<ValueHolder<String>> gasPrice,
+      final Optional<ValueHolder<String>> gas,
+      final Optional<ValueHolder<String>> to,
+      final Optional<ValueHolder<String>> value,
+      final Optional<ValueHolder<String>> data,
+      final Optional<ValueHolder<String>> privateFrom,
+      final Optional<ValueHolder<List<String>>> privateFor,
+      final Optional<ValueHolder<String>> restriction,
+      final Optional<ValueHolder<String>> privacyGroupId) {
     this.from = from;
     this.nonce = nonce;
     this.gasPrice = gasPrice;
@@ -50,45 +59,218 @@ public class PrivateTransaction {
     this.privateFrom = privateFrom;
     this.privateFor = privateFor;
     this.restriction = restriction;
+    this.privacyGroupId = privacyGroupId;
   }
 
-  public String getFrom() {
+  public Optional<ValueHolder<String>> getFrom() {
     return from;
   }
 
-  public String getTo() {
-    return to;
-  }
-
-  public String getGasPrice() {
-    return gasPrice;
-  }
-
-  public String getGas() {
-    return gas;
-  }
-
-  public String getValue() {
-    return value;
-  }
-
-  public String getData() {
-    return data;
-  }
-
-  public String getNonce() {
+  public Optional<ValueHolder<String>> getNonce() {
     return nonce;
   }
 
-  public String getPrivateFrom() {
+  public Optional<ValueHolder<String>> getGasPrice() {
+    return gasPrice;
+  }
+
+  public Optional<ValueHolder<String>> getGas() {
+    return gas;
+  }
+
+  public Optional<ValueHolder<String>> getTo() {
+    return to;
+  }
+
+  public Optional<ValueHolder<String>> getValue() {
+    return value;
+  }
+
+  public Optional<ValueHolder<String>> getData() {
+    return data;
+  }
+
+  public Optional<ValueHolder<String>> getPrivateFrom() {
     return privateFrom;
   }
 
-  public List<String> getPrivateFor() {
+  public Optional<ValueHolder<List<String>>> getPrivateFor() {
     return privateFor;
   }
 
-  public String getRestriction() {
+  public Optional<ValueHolder<String>> getRestriction() {
     return restriction;
+  }
+
+  public Optional<ValueHolder<String>> getPrivacyGroupId() {
+    return privacyGroupId;
+  }
+
+  public static Builder defaultTransaction() {
+    return new PrivateTransaction.Builder()
+        .withFrom(UNLOCKED_ACCOUNT)
+        .withNonce("0xe04d296d2460cfb8472af2c5fd05b5a214109c25688d3704aed5484f9a7792f2")
+        .withGasPrice("0x9184e72a000")
+        .withGas("0x76c0")
+        .withTo("0xd46e8dd67c5d32be8058bb8eb970870f07244567")
+        .withValue(DEFAULT_VALUE)
+        .withData(
+            "0xd46e8dd67c5d32be8d46e8dd67c5d32be8058bb8eb970870f072445675058bb8eb970870f072445675")
+        .withPrivateFrom(PRIVATE_FROM)
+        .withPrivateFor(singletonList(PRIVATE_FOR))
+        .withRestriction("restricted");
+  }
+
+  public static Builder privacyGroupIdTransaction() {
+    return new PrivateTransaction.Builder()
+        .withFrom(UNLOCKED_ACCOUNT)
+        .withNonce("0xe04d296d2460cfb8472af2c5fd05b5a214109c25688d3704aed5484f9a7792f2")
+        .withGasPrice("0x9184e72a000")
+        .withGas("0x76c0")
+        .withTo("0xd46e8dd67c5d32be8058bb8eb970870f07244567")
+        .withValue(DEFAULT_VALUE)
+        .withData(
+            "0xd46e8dd67c5d32be8d46e8dd67c5d32be8058bb8eb970870f072445675058bb8eb970870f072445675")
+        .withPrivateFrom(PRIVATE_FROM)
+        .withPrivacyGroupId(PRIVACY_GROUP_ID)
+        .withRestriction("restricted");
+  }
+
+  public static class Builder {
+    private Optional<ValueHolder<String>> from = Optional.empty();
+    private Optional<ValueHolder<String>> nonce = Optional.empty();
+    private Optional<ValueHolder<String>> gasPrice = Optional.empty();
+    private Optional<ValueHolder<String>> gas = Optional.empty();
+    private Optional<ValueHolder<String>> to = Optional.empty();
+    private Optional<ValueHolder<String>> value = Optional.empty();
+    private Optional<ValueHolder<String>> data = Optional.empty();
+    private Optional<ValueHolder<String>> privateFrom = Optional.empty();
+    private Optional<ValueHolder<List<String>>> privateFor = Optional.empty();
+    private Optional<ValueHolder<String>> restriction = Optional.empty();
+    private Optional<ValueHolder<String>> privacyGroupId = Optional.empty();
+
+    public Builder withFrom(final String from) {
+      this.from = createValue(from);
+      return this;
+    }
+
+    public Builder withNonce(final String nonce) {
+      this.nonce = createValue(nonce);
+      return this;
+    }
+
+    public Builder missingNonce() {
+      this.nonce = Optional.empty();
+      return this;
+    }
+
+    public Builder withGasPrice(final String gasPrice) {
+      this.gasPrice = createValue(gasPrice);
+      return this;
+    }
+
+    public Builder missingGasPrice() {
+      this.gasPrice = Optional.empty();
+      return this;
+    }
+
+    public Builder withGas(final String gas) {
+      this.gas = createValue(gas);
+      return this;
+    }
+
+    public Builder missingGas() {
+      this.gas = Optional.empty();
+      return this;
+    }
+
+    public Builder withTo(final String to) {
+      this.to = createValue(to);
+      return this;
+    }
+
+    public Builder missingTo() {
+      this.to = Optional.empty();
+      return this;
+    }
+
+    public Builder withValue(final String value) {
+      this.value = createValue(value);
+      return this;
+    }
+
+    public Builder missingValue() {
+      this.value = Optional.empty();
+      return this;
+    }
+
+    public Builder withData(final String data) {
+      this.data = createValue(data);
+      return this;
+    }
+
+    public Builder missingData() {
+      this.data = Optional.empty();
+      return this;
+    }
+
+    public Builder withPrivateFrom(final String privateFrom) {
+      this.privateFrom = createValue(privateFrom);
+      return this;
+    }
+
+    public Builder missingPrivateFrom() {
+      this.privateFrom = Optional.empty();
+      return this;
+    }
+
+    public Builder withPrivateFor(final List<String> privateFor) {
+      this.privateFor = createValue(privateFor);
+      return this;
+    }
+
+    public Builder missingPrivateFor() {
+      this.privateFor = Optional.empty();
+      return this;
+    }
+
+    public Builder withPrivacyGroupId(final String privacyGroupId) {
+      this.privacyGroupId = createValue(privacyGroupId);
+      return this;
+    }
+
+    public Builder missingPrivacyGroupId() {
+      this.privacyGroupId = Optional.empty();
+      return this;
+    }
+
+    public Builder withRestriction(final String restriction) {
+      this.restriction = createValue(restriction);
+      return this;
+    }
+
+    public Builder missingRestriction() {
+      this.restriction = Optional.empty();
+      return this;
+    }
+
+    public PrivateTransaction build() {
+      return new PrivateTransaction(
+          from,
+          nonce,
+          gasPrice,
+          gas,
+          to,
+          value,
+          data,
+          privateFrom,
+          privateFor,
+          restriction,
+          privacyGroupId);
+    }
+
+    private <T> Optional<ValueHolder<T>> createValue(final T from) {
+      return Optional.of(new ValueHolder<>(from));
+    }
   }
 }

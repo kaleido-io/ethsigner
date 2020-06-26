@@ -16,8 +16,10 @@ import static org.web3j.utils.Numeric.encodeQuantity;
 
 import java.math.BigInteger;
 import java.util.List;
+import java.util.Optional;
 
 import com.fasterxml.jackson.annotation.JsonInclude;
+import org.web3j.utils.Numeric;
 
 @JsonInclude(JsonInclude.Include.NON_NULL)
 public class PrivateTransaction {
@@ -66,6 +68,7 @@ public class PrivateTransaction {
       final String init,
       final String privateFrom,
       final List<String> privateFor,
+      final String privacyGroupId,
       final String restriction) {
     return new PrivateTransaction(
         from,
@@ -82,17 +85,18 @@ public class PrivateTransaction {
 
   public static PrivateTransaction createEtherTransaction(
       final String from,
-      final BigInteger nonce,
+      final Optional<BigInteger> nonce,
       final BigInteger gasPrice,
       final BigInteger gasLimit,
       final String to,
       final BigInteger value,
       final String privateFrom,
       final List<String> privateFor,
+      final String privacyGroupId,
       final String restriction) {
     return new PrivateTransaction(
         from,
-        encodeQuantity(nonce),
+        nonce.map(Numeric::encodeQuantity).orElse(null),
         encodeQuantity(gasPrice),
         encodeQuantity(gasLimit),
         to,

@@ -15,6 +15,7 @@ package tech.pegasys.ethsigner.tests.signing;
 import static java.util.Collections.singletonList;
 import static org.assertj.core.api.Assertions.assertThat;
 import static tech.pegasys.ethsigner.core.jsonrpc.response.JsonRpcError.ENCLAVE_ERROR;
+import static tech.pegasys.ethsigner.core.jsonrpc.response.JsonRpcError.INTERNAL_ERROR;
 import static tech.pegasys.ethsigner.core.jsonrpc.response.JsonRpcError.INVALID_PARAMS;
 import static tech.pegasys.ethsigner.tests.dsl.Contracts.GAS_LIMIT;
 import static tech.pegasys.ethsigner.tests.dsl.Contracts.GAS_PRICE;
@@ -27,8 +28,9 @@ import tech.pegasys.ethsigner.tests.dsl.signer.SignerResponse;
 import tech.pegasys.ethsigner.tests.signing.contract.generated.SimpleStorage;
 
 import java.math.BigInteger;
+import java.util.Optional;
 
-import org.junit.Test;
+import org.junit.jupiter.api.Test;
 
 public class PrivateTransactionAcceptanceTest extends AcceptanceTestBase {
   private static final String RECIPIENT = "0x1b00ba00ca00bb00aa00bc00be00ac00ca00da00";
@@ -38,13 +40,14 @@ public class PrivateTransactionAcceptanceTest extends AcceptanceTestBase {
     final PrivateTransaction contract =
         PrivateTransaction.createContractTransaction(
             richBenefactor().address(),
-            richBenefactor().nextNonceAndIncrement(),
+            BigInteger.ZERO,
             GAS_PRICE,
             GAS_LIMIT,
             BigInteger.ZERO,
             SimpleStorage.BINARY,
             enclavePublicKey(),
             singletonList(enclavePublicKey()),
+            null,
             RESTRICTED);
 
     final SignerResponse<JsonRpcErrorResponse> signerResponse =
@@ -59,17 +62,38 @@ public class PrivateTransactionAcceptanceTest extends AcceptanceTestBase {
     final PrivateTransaction transaction =
         PrivateTransaction.createEtherTransaction(
             richBenefactor().address(),
-            richBenefactor().nextNonceAndIncrement(),
+            Optional.of(BigInteger.ZERO),
             GAS_PRICE,
             GAS_LIMIT,
             RECIPIENT,
             BigInteger.ONE,
             enclavePublicKey(),
             singletonList(enclavePublicKey()),
+            null,
             RESTRICTED);
 
     final SignerResponse<JsonRpcErrorResponse> signerResponse =
         ethSigner().privateContracts().submitExceptional(transaction);
     assertThat(signerResponse.jsonRpc().getError()).isEqualTo(INVALID_PARAMS);
+  }
+
+  @Test
+  public void valueTransferWithoutNonce() {
+    final PrivateTransaction transaction =
+        PrivateTransaction.createEtherTransaction(
+            richBenefactor().address(),
+            Optional.empty(),
+            GAS_PRICE,
+            GAS_LIMIT,
+            RECIPIENT,
+            BigInteger.ZERO,
+            enclavePublicKey(),
+            singletonList(enclavePublicKey()),
+            null,
+            RESTRICTED);
+
+    final SignerResponse<JsonRpcErrorResponse> signerResponse =
+        ethSigner().privateContracts().submitExceptional(transaction);
+    assertThat(signerResponse.jsonRpc().getError()).isEqualTo(INTERNAL_ERROR);
   }
 }

@@ -12,17 +12,29 @@
  */
 package tech.pegasys.ethsigner.tests.dsl.signer;
 
+import tech.pegasys.ethsigner.core.config.TlsOptions;
+import tech.pegasys.ethsigner.core.config.tls.client.ClientTlsOptions;
+import tech.pegasys.ethsigner.tests.dsl.node.HashicorpSigningParams;
+import tech.pegasys.ethsigner.tests.dsl.tls.TlsCertificateDefinition;
+
+import java.nio.file.Path;
+import java.util.Optional;
+
 public class SignerConfigurationBuilder {
 
-  /** ChainId defined in the Pantheon dev mode genesis. */
+  /** ChainId defined in the dev mode genesis. */
   private static final String CHAIN_ID = "2018";
 
   private static final String LOCALHOST = "127.0.0.1";
 
   private int httpRpcPort;
   private int webSocketPort;
-  private int hashicorpVaultPort;
-  private String ipAddress;
+  private String keyVaultName;
+  private Path multiKeySignerDirectory;
+  private HashicorpSigningParams hashicorpNode;
+  private TlsOptions serverTlsOptions;
+  private ClientTlsOptions clientTlsOptions;
+  private TlsCertificateDefinition overriddenCaTrustStore;
 
   public SignerConfigurationBuilder withHttpRpcPort(final int port) {
     httpRpcPort = port;
@@ -34,20 +46,50 @@ public class SignerConfigurationBuilder {
     return this;
   }
 
-  public SignerConfigurationBuilder withHashicorpVaultPort(final int port) {
-    hashicorpVaultPort = port;
+  public SignerConfigurationBuilder withHashicorpSigner(
+      final HashicorpSigningParams hashicorpNode) {
+    this.hashicorpNode = hashicorpNode;
     return this;
   }
 
-  public SignerConfigurationBuilder withHashicorpIpAddress(final String address) {
-    ipAddress = address;
+  public SignerConfigurationBuilder withAzureKeyVault(final String keyVaultName) {
+    this.keyVaultName = keyVaultName;
+    return this;
+  }
+
+  public SignerConfigurationBuilder withMultiKeySignerDirectory(
+      final Path multiKeySignerDirectory) {
+    this.multiKeySignerDirectory = multiKeySignerDirectory;
+    return this;
+  }
+
+  public SignerConfigurationBuilder withServerTlsOptions(final TlsOptions serverTlsOptions) {
+    this.serverTlsOptions = serverTlsOptions;
+    return this;
+  }
+
+  public SignerConfigurationBuilder withDownstreamTlsOptions(
+      final ClientTlsOptions clientTlsOptions) {
+    this.clientTlsOptions = clientTlsOptions;
+    return this;
+  }
+
+  public SignerConfigurationBuilder withOverriddenCA(final TlsCertificateDefinition keystore) {
+    this.overriddenCaTrustStore = keystore;
     return this;
   }
 
   public SignerConfiguration build() {
     final TransactionSignerParamsSupplier transactionSignerParamsSupplier =
-        new TransactionSignerParamsSupplier(hashicorpVaultPort, ipAddress);
+        new TransactionSignerParamsSupplier(hashicorpNode, keyVaultName, multiKeySignerDirectory);
     return new SignerConfiguration(
-        CHAIN_ID, LOCALHOST, httpRpcPort, webSocketPort, transactionSignerParamsSupplier);
+        CHAIN_ID,
+        LOCALHOST,
+        httpRpcPort,
+        webSocketPort,
+        transactionSignerParamsSupplier,
+        Optional.ofNullable(serverTlsOptions),
+        Optional.ofNullable(clientTlsOptions),
+        Optional.ofNullable(overriddenCaTrustStore));
   }
 }

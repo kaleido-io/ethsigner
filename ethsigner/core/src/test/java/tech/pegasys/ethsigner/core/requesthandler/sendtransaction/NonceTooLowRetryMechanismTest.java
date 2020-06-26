@@ -24,8 +24,9 @@ import java.math.BigInteger;
 import io.netty.handler.codec.http.HttpResponseStatus;
 import io.vertx.core.http.HttpClientResponse;
 import io.vertx.core.json.Json;
-import org.junit.Before;
-import org.junit.Test;
+import io.vertx.core.json.JsonObject;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
 
 public class NonceTooLowRetryMechanismTest {
 
@@ -34,7 +35,7 @@ public class NonceTooLowRetryMechanismTest {
 
   private final RetryMechanism retryMechanism = new NonceTooLowRetryMechanism(2);
 
-  @Before
+  @BeforeEach
   public void setup() {
     when(nonceProvider.getNonce()).thenReturn(BigInteger.ONE);
   }
@@ -45,6 +46,23 @@ public class NonceTooLowRetryMechanismTest {
 
     final JsonRpcErrorResponse errorResponse =
         new JsonRpcErrorResponse(JsonRpcError.INVALID_PARAMS);
+
+    assertThat(
+            retryMechanism.responseRequiresRetry(httpResponse, Json.encodeToBuffer(errorResponse)))
+        .isFalse();
+  }
+
+  @Test
+  public void retryIsNotRequiredForUnknownErrorType() {
+    when(httpResponse.statusCode()).thenReturn(HttpResponseStatus.BAD_REQUEST.code());
+
+    final JsonObject errorResponse = new JsonObject();
+    final JsonObject error = new JsonObject();
+    error.put("code", -9000);
+    error.put("message", "Unknown error");
+    errorResponse.put("jsonrpc", "2.0");
+    errorResponse.put("id", 1);
+    errorResponse.put("error", new JsonObject());
 
     assertThat(
             retryMechanism.responseRequiresRetry(httpResponse, Json.encodeToBuffer(errorResponse)))

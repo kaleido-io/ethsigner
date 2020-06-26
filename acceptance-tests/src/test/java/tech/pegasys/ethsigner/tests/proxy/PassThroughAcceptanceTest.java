@@ -20,7 +20,7 @@ import tech.pegasys.ethsigner.tests.AcceptanceTestBase;
 
 import java.math.BigInteger;
 
-import org.junit.Test;
+import org.junit.jupiter.api.Test;
 import org.web3j.protocol.core.methods.request.Transaction;
 import org.web3j.utils.Convert;
 
@@ -33,18 +33,19 @@ public class PassThroughAcceptanceTest extends AcceptanceTestBase {
 
   @Test
   public void ethGetTransactionCountReturnCorrectNumber() {
-    final BigInteger pantheonTransactionCount =
+    final BigInteger web3ProviderTransactionCount =
         ethNode().transactions().count(richBenefactor().address());
     BigInteger ethSignerTransactionCount =
         ethSigner().transactions().count(richBenefactor().address());
 
-    assertThat(pantheonTransactionCount).isEqualTo(ethSignerTransactionCount);
+    assertThat(web3ProviderTransactionCount).isEqualTo(ethSignerTransactionCount);
 
     submitTransactionAndWaitForBlock(); // should increase the transaction count by one.
 
     ethSignerTransactionCount = ethSigner().transactions().count(richBenefactor().address());
 
-    assertThat(pantheonTransactionCount.add(BigInteger.ONE)).isEqualTo(ethSignerTransactionCount);
+    assertThat(web3ProviderTransactionCount.add(BigInteger.ONE))
+        .isEqualTo(ethSignerTransactionCount);
   }
 
   @Test
@@ -58,9 +59,9 @@ public class PassThroughAcceptanceTest extends AcceptanceTestBase {
     assertThat(ethSignerEndBalance)
         .isEqualByComparingTo(ethSignerStartBalance.add(TRANSFER_AMOUNT_WEI));
 
-    final BigInteger pantheonBalance = ethNode().accounts().balance(RECIPIENT);
+    final BigInteger web3ProviderBalance = ethNode().accounts().balance(RECIPIENT);
 
-    assertThat(pantheonBalance).isEqualTo(ethSignerEndBalance);
+    assertThat(web3ProviderBalance).isEqualTo(ethSignerEndBalance);
   }
 
   void submitTransactionAndWaitForBlock() {

@@ -13,23 +13,27 @@
 package tech.pegasys.ethsigner.core.jsonrpc;
 
 import static org.web3j.utils.Numeric.decodeQuantity;
+import static tech.pegasys.ethsigner.core.jsonrpc.RpcUtil.decodeBigInteger;
 import static tech.pegasys.ethsigner.core.jsonrpc.RpcUtil.fromRpcRequestToJsonParam;
-import static tech.pegasys.ethsigner.core.jsonrpc.RpcUtil.validatePrefix;
+import static tech.pegasys.ethsigner.core.jsonrpc.RpcUtil.validateNotEmpty;
 
 import java.math.BigInteger;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Optional;
+import java.util.stream.Collectors;
 
 import com.fasterxml.jackson.annotation.JsonCreator;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.annotation.JsonSetter;
+import org.web3j.utils.Base64String;
 
 @JsonIgnoreProperties(ignoreUnknown = true)
 public class EeaSendTransactionJsonParameters {
+
   private final String sender;
-  private final String privateFrom;
-  private final List<String> privateFor;
+  private final Base64String privateFrom;
   private final String restriction;
 
   private BigInteger gas;
@@ -38,50 +42,60 @@ public class EeaSendTransactionJsonParameters {
   private BigInteger value;
   private String receiver;
   private String data;
+  private Base64String privacyGroupId;
+  private List<Base64String> privateFor;
 
   @JsonCreator
   public EeaSendTransactionJsonParameters(
       @JsonProperty("from") final String sender,
       @JsonProperty("privateFrom") final String privateFrom,
-      @JsonProperty("privateFor") final List<String> privateFor,
       @JsonProperty("restriction") final String restriction) {
-    validatePrefix(sender);
-    this.privateFrom = privateFrom;
-    this.privateFor = privateFor;
+    validateNotEmpty(sender);
+    this.privateFrom = Base64String.wrap(privateFrom);
     this.restriction = restriction;
     this.sender = sender;
   }
 
   @JsonSetter("gas")
   public void gas(final String gas) {
-    this.gas = decodeQuantity(gas);
+    this.gas = decodeBigInteger(gas);
   }
 
   @JsonSetter("gasPrice")
   public void gasPrice(final String gasPrice) {
-    this.gasPrice = decodeQuantity(gasPrice);
+    this.gasPrice = decodeBigInteger(gasPrice);
   }
 
   @JsonSetter("nonce")
   public void nonce(final String nonce) {
-    this.nonce = decodeQuantity(nonce);
+    this.nonce = decodeBigInteger(nonce);
   }
 
   @JsonSetter("to")
   public void receiver(final String receiver) {
-    validatePrefix(receiver);
     this.receiver = receiver;
   }
 
   @JsonSetter("value")
   public void value(final String value) {
     validateValue(value);
-    this.value = decodeQuantity(value);
+    this.value = decodeBigInteger(value);
   }
 
   @JsonSetter("data")
   public void data(final String data) {
     this.data = data;
+  }
+
+  @JsonSetter("privateFor")
+  public void privateFor(final String[] privateFor) {
+    this.privateFor =
+        Arrays.stream(privateFor).map(Base64String::wrap).collect(Collectors.toList());
+  }
+
+  @JsonSetter("privacyGroupId")
+  public void privacyGroupId(final String privacyGroupId) {
+    this.privacyGroupId = Base64String.wrap(privacyGroupId);
   }
 
   public Optional<String> data() {
@@ -108,16 +122,20 @@ public class EeaSendTransactionJsonParameters {
     return Optional.ofNullable(nonce);
   }
 
+  public Optional<List<Base64String>> privateFor() {
+    return Optional.ofNullable(privateFor);
+  }
+
+  public Optional<Base64String> privacyGroupId() {
+    return Optional.ofNullable(privacyGroupId);
+  }
+
   public String sender() {
     return sender;
   }
 
-  public String privateFrom() {
+  public Base64String privateFrom() {
     return privateFrom;
-  }
-
-  public List<String> privateFor() {
-    return privateFor;
   }
 
   public String restriction() {
@@ -129,7 +147,7 @@ public class EeaSendTransactionJsonParameters {
   }
 
   private void validateValue(final String value) {
-    if (!decodeQuantity(value).equals(BigInteger.ZERO)) {
+    if (value != null && !decodeQuantity(value).equals(BigInteger.ZERO)) {
       throw new IllegalArgumentException(
           "Non-zero value, private transactions cannot transfer ether");
     }

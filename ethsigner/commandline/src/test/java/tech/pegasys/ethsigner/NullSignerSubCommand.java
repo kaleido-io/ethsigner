@@ -12,7 +12,13 @@
  */
 package tech.pegasys.ethsigner;
 
-import tech.pegasys.ethsigner.core.signing.TransactionSigner;
+import tech.pegasys.signers.secp256k1.api.TransactionSigner;
+import tech.pegasys.signers.secp256k1.api.TransactionSignerProvider;
+import tech.pegasys.signers.secp256k1.common.TransactionSignerInitializationException;
+
+import java.util.Collections;
+import java.util.Optional;
+import java.util.Set;
 
 import picocli.CommandLine.Command;
 import picocli.CommandLine.Option;
@@ -26,12 +32,23 @@ public class NullSignerSubCommand extends SignerSubCommand {
 
   public static final String COMMAND_NAME = "NullSigner";
 
+  @SuppressWarnings("unused")
   @Option(names = "--the-data", description = "Some data required for this subcommand", arity = "1")
   private Integer downstreamHttpPort;
 
+  private boolean shouldThrow = false;
+  public static final String ERROR_MSG = "Null Signer Failed";
+
+  public NullSignerSubCommand() {}
+
+  public NullSignerSubCommand(boolean shouldThrow) {
+    this.shouldThrow = shouldThrow;
+  }
+
   @Override
-  public TransactionSigner createSigner() {
-    return null;
+  public TransactionSignerProvider createSignerFactory()
+      throws TransactionSignerInitializationException {
+    return new EmptyTransactionSignerProvider();
   }
 
   @Override
@@ -40,5 +57,24 @@ public class NullSignerSubCommand extends SignerSubCommand {
   }
 
   @Override
-  public void run() {}
+  public void run() {
+    // this is required to do any non-PicoCLI validation of args prior to setup
+    super.validateArgs();
+    if (shouldThrow) {
+      throw new TransactionSignerInitializationException(ERROR_MSG);
+    }
+  }
+
+  public static class EmptyTransactionSignerProvider implements TransactionSignerProvider {
+
+    @Override
+    public Optional<TransactionSigner> getSigner(final String address) {
+      return Optional.empty();
+    }
+
+    @Override
+    public Set<String> availableAddresses() {
+      return Collections.emptySet();
+    }
+  }
 }

@@ -13,47 +13,98 @@
 package tech.pegasys.ethsigner.tests.dsl.signer;
 
 import static java.nio.charset.StandardCharsets.UTF_8;
+import static tech.pegasys.signers.hashicorp.dsl.certificates.CertificateHelpers.createFingerprintFile;
 
 import tech.pegasys.ethsigner.tests.dsl.Accounts;
-import tech.pegasys.ethsigner.tests.hashicorpvault.HashicorpVaultDocker;
+import tech.pegasys.ethsigner.tests.dsl.node.HashicorpSigningParams;
+import tech.pegasys.signers.hashicorp.dsl.certificates.SelfSignedCertificate;
 
 import java.io.File;
 import java.io.IOException;
 import java.net.URL;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.security.cert.CertificateEncodingException;
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.Optional;
 
 import com.google.common.io.Resources;
 
 public class TransactionSignerParamsSupplier {
-  private final int hashicorpVaultPort;
-  private final String ipAddress;
 
-  public TransactionSignerParamsSupplier(final int hashicorpVaultPort, final String ipAddress) {
-    this.hashicorpVaultPort = hashicorpVaultPort;
-    this.ipAddress = ipAddress;
+  private final HashicorpSigningParams hashicorpNode;
+  private final String azureKeyVault;
+  private final Path multiKeySignerDirectory;
+
+  public TransactionSignerParamsSupplier(
+      final HashicorpSigningParams hashicorpNode,
+      final String azureKeyVault,
+      final Path multiKeySignerDirectory) {
+    this.hashicorpNode = hashicorpNode;
+    this.azureKeyVault = azureKeyVault;
+    this.multiKeySignerDirectory = multiKeySignerDirectory;
   }
 
   public Collection<String> get() {
     final ArrayList<String> params = new ArrayList<>();
-    if (hashicorpVaultPort == 0) {
+    if (hashicorpNode != null) {
+      params.add("hashicorp-signer");
+      params.add("--auth-file");
+      params.add(createVaultAuthFile(hashicorpNode.getVaultToken()).getAbsolutePath());
+      params.add("--host");
+      params.add(hashicorpNode.getHost());
+      params.add("--port");
+      params.add(String.valueOf(hashicorpNode.getPort()));
+      params.add("--signing-key-path");
+      params.add(hashicorpNode.getSecretHttpPath());
+
+      if (hashicorpNode.getServerCertificate().isEmpty()) {
+        params.add("--tls-enabled=false");
+      } else {
+        final SelfSignedCertificate tlsCert = hashicorpNode.getServerCertificate().get();
+        final Path trustStoreParentDir;
+        try {
+          trustStoreParentDir = Files.createTempDirectory("knownServerPath");
+          final Path trustStorePath =
+              createFingerprintFile(
+                  trustStoreParentDir, tlsCert, Optional.of(hashicorpNode.getPort()));
+          params.add("--tls-known-server-file");
+          params.add(trustStorePath.toString());
+        } catch (final IOException | CertificateEncodingException e) {
+          throw new RuntimeException("Failed to construct hashicorp trust store file.");
+        }
+      }
+
+    } else if (azureKeyVault != null) {
+      params.add("azure-signer");
+      params.add("--key-vault-name");
+      params.add(azureKeyVault);
+      params.add("--key-name");
+      params.add("TestKey");
+      params.add("--key-version");
+      params.add("7c01fe58d68148bba5824ce418241092");
+      params.add("--client-id");
+      params.add(System.getenv("ETHSIGNER_AZURE_CLIENT_ID"));
+      params.add("--client-secret-path");
+      params.add(createAzureSecretFile().getAbsolutePath());
+    } else if (multiKeySignerDirectory != null) {
+      params.add("multikey-signer");
+      params.add("--directory");
+      params.add(multiKeySignerDirectory.toAbsolutePath().toString());
+    } else {
       params.add("file-based-signer");
       params.add("--password-file");
       params.add(createPasswordFile().getAbsolutePath());
       params.add("--key-file");
       params.add(createKeyFile().getAbsolutePath());
-    } else {
-      params.add("hashicorp-signer");
-      params.add("--auth-file");
-      params.add(createVaultAuthFile().getAbsolutePath());
-      params.add("--host");
-      params.add(ipAddress);
-      params.add("--port");
-      params.add(String.valueOf(hashicorpVaultPort));
     }
     return params;
+  }
+
+  private File createAzureSecretFile() {
+    return createTmpFile(
+        "azure_secret", System.getenv("ETHSIGNER_AZURE_CLIENT_SECRET").getBytes(UTF_8));
   }
 
   private File createPasswordFile() {
@@ -75,8 +126,8 @@ public class TransactionSignerParamsSupplier {
     return createTmpFile("ethsigner_keyfile", data);
   }
 
-  private File createVaultAuthFile() {
-    return createTmpFile("vault_authfile", HashicorpVaultDocker.vaultToken.getBytes(UTF_8));
+  private File createVaultAuthFile(final String vaultToken) {
+    return createTmpFile("vault_authfile", vaultToken.getBytes(UTF_8));
   }
 
   private File createTmpFile(final String tempNamePrefix, final byte[] data) {

@@ -16,10 +16,10 @@ import static java.nio.charset.StandardCharsets.UTF_8;
 
 import tech.pegasys.ethsigner.tests.dsl.Account;
 import tech.pegasys.ethsigner.tests.dsl.DockerClientFactory;
+import tech.pegasys.ethsigner.tests.dsl.node.BesuNode;
 import tech.pegasys.ethsigner.tests.dsl.node.Node;
 import tech.pegasys.ethsigner.tests.dsl.node.NodeConfiguration;
 import tech.pegasys.ethsigner.tests.dsl.node.NodeConfigurationBuilder;
-import tech.pegasys.ethsigner.tests.dsl.node.PantheonNode;
 import tech.pegasys.ethsigner.tests.dsl.signer.Signer;
 import tech.pegasys.ethsigner.tests.dsl.signer.SignerConfiguration;
 import tech.pegasys.ethsigner.tests.dsl.signer.SignerConfigurationBuilder;
@@ -29,10 +29,12 @@ import java.net.URL;
 
 import com.github.dockerjava.api.DockerClient;
 import com.google.common.io.Resources;
-import org.junit.AfterClass;
-import org.junit.BeforeClass;
+import org.junit.jupiter.api.AfterAll;
+import org.junit.jupiter.api.BeforeAll;
 
 public class AcceptanceTestBase {
+
+  private static String ENCLAVE_PUBLIC_KEY_FILENAME = "enclave_key.pub";
 
   private static Node ethNode;
   private static Signer ethSigner;
@@ -50,7 +52,7 @@ public class AcceptanceTestBase {
   }
 
   protected String enclavePublicKey() {
-    return readResource("enclave_key.pub");
+    return readResource(ENCLAVE_PUBLIC_KEY_FILENAME);
   }
 
   @SuppressWarnings("UnstableApiUsage")
@@ -63,7 +65,7 @@ public class AcceptanceTestBase {
     }
   }
 
-  @BeforeClass
+  @BeforeAll
   public static void setUpBase() {
     Runtime.getRuntime().addShutdownHook(new Thread(AcceptanceTestBase::tearDownBase));
 
@@ -71,7 +73,7 @@ public class AcceptanceTestBase {
     final NodeConfiguration nodeConfig = new NodeConfigurationBuilder().build();
     final SignerConfiguration signerConfig = new SignerConfigurationBuilder().build();
 
-    ethNode = new PantheonNode(docker, nodeConfig);
+    ethNode = new BesuNode(docker, nodeConfig);
     ethNode.start();
     ethNode.awaitStartupCompletion();
 
@@ -80,14 +82,16 @@ public class AcceptanceTestBase {
     ethSigner.awaitStartupCompletion();
   }
 
-  @AfterClass
-  public static void tearDownBase() {
+  @AfterAll
+  public static synchronized void tearDownBase() {
     if (ethNode != null) {
       ethNode.shutdown();
+      ethNode = null;
     }
 
     if (ethSigner != null) {
       ethSigner.shutdown();
+      ethSigner = null;
     }
   }
 }

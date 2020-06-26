@@ -15,7 +15,7 @@ and feel free to propose changes to this document in a pull request.
   * [Suggesting Enhancements](#suggesting-enhancements)
   * [Your First Contribution](#your-first-contribution)
   * [Pull Requests](#pull-requests)
-  * [Code Reviews]
+  * [Code Reviews](#code-review)
 
 [Style Guides](#style-guides)
   * [Java Style Guide](#java-code-style-guide)
@@ -50,14 +50,14 @@ please [include as many details as possible](#how-do-i-submit-a-good-bug-report)
 open a new issue and include a link to the original issue in the body of your new one.
 
 #### Before Submitting A Bug Report
-* **Confirm the problem** is reproducible in the latest version of the software
-* **Check the [Debugging documentation]**. You might be able to find the cause of the problem and fix things yourself. 
-* **Perform a [cursory search of project issues](https://pegasys1.atlassian.net/browse/PAN-2502?jql=project%20%3D%20PAN)** 
+* **Confirm the problem** is reproducible in the latest version of the software.
+* **Check [EthSigner documentation]**. You might be able to find the cause of the problem and fix things yourself. 
+* **Perform a cursory search of project issues in [Github issues]** 
 to see if the problem has already been reported. If it has **and the issue is still open**, add a comment 
 to the existing issue instead of opening a new one.
 
 #### How Do I Submit A (Good) Bug Report?
-Bugs are tracked as [Jira issues](https://pegasys1.atlassian.net/secure/Dashboard.jspa?selectPageId=10000).  
+Bugs are tracked as issues in [Github issues].  
 
 Explain the problem and include additional details to help maintainers reproduce the problem:
 
@@ -90,7 +90,7 @@ Include details about your configuration and environment:
 * **Are you running in a virtual machine?** If so, which VM software are you using and which operating 
 systems and versions are used for the host and the guest?
 * **Are you running in a docker container?** If so, what version of docker?
-* **Are you running in a a Cloud?** If so, which one, and what type/size of VM is it?
+* **Are you running in a Cloud?** If so, which one, and what type/size of VM is it?
 * **What version of Java are you running?** You can get the exact version by looking at the EthSigner 
 logfile during startup.
 
@@ -110,14 +110,14 @@ When you are creating an enhancement suggestion, please
 
 #### Before Submitting An Enhancement Suggestion
 
-* **Check the [Debugging documentation].** You might be able to find the cause of the problem and fix things yourself. 
-* **Perform a [cursory search of project issues](https://pegasys1.atlassian.net/browse/PAN-2502?jql=project%20%3D%20PAN)** 
+* **Check the [EthSigner documentation].** You might be able to find the cause of the problem and fix things yourself. 
+* **Perform a cursory search of project issues in [Github issues]** 
 to see if the problem has already been reported. If it has **and the issue is still open**, add a comment 
 to the existing issue instead of opening a new one.
 
 #### How Do I Submit A (Good) Enhancement Suggestion?
 
-Enhancement suggestions are tracked as [Jira issues](https://pegasys1.atlassian.net/secure/Dashboard.jspa?selectPageId=10000).
+Enhancement suggestions are tracked as issues in [Github issues].
 Provide the following information:
 
 * **Use a clear and descriptive title** for the issue to identify the suggestion.
@@ -133,12 +133,12 @@ Provide the following information:
 * **Specify the name and version of the OS you're using.**
 
 ## Your First Contribution
-Start by looking through the 'good first issue' and 'help wanted' labeled issues on the [Jira dashboard](https://pegasys1.atlassian.net/secure/Dashboard.jspa?selectPageId=10000):
+Start by looking through the 'good first issue' and 'help wanted' labeled issues in [Github issues]:
 * [Good First Issue][search-label-good-first-issue] - issues which should only require a few lines of code or documentation, 
 and a test or two.
 * [Help wanted issues][search-label-help-wanted] - issues which are a bit more involved than `good first issue` issues.
 
-When you've indentified an issue you'd like to work on, ping us on [Gitter] and we'll assign it to you. 
+When you've identified an issue you'd like to work on, ping us on [Gitter] and we'll assign it to you. 
 
 ### Contribution Workflow
 The codebase and documentation are maintained using the same "*contributor workflow*" where everyone 
@@ -153,22 +153,19 @@ To contribute changes, use the following workflow:
 1. **Create a topic branch** and name it appropriately.
 Starting the branch name with the issue number is a good practice and a reminder to fix only one issue in a 
 Pull-Request (PR)._
-1. **Make your changes** adhering to the coding and documentation conventions described below.
+1. **Make your changes** adhering to the coding conventions described below.
 _In general a commit serves a single purpose and diffs should be easily comprehensible.
 For this reason do not mix any formatting fixes or code moves with actual code changes._
-1. **Commit your changes** using a clear commit message.
+1. **Commit your changes** see [How to Write a Git Commit Message] article by [Chris Beams].
 1. **Test your changes** locally before pushing to ensure that what you are proposing is not breaking
-another part of the software.
-    * For code changes, running the `./gradlew clean check test` command locally will help you
+another part of the software. Running the `./gradlew clean check test` command locally will help you
 to be confident that your changes will pass CI tests once pushed as a Pull Request.
-    * For doc changes, displaying the doc with [MkDocs] in a preview mode enables you to check the
-  rendering as explained in the [MkDocs And Markdown Guide](MKDOCS-MARKDOWN-GUIDE.md#preview-the-documentation). 
 1. **Push your changes** to your remote fork (usually labeled as `origin`).
-1. **Create a pull-request** (PR) on the EthSigner repository. If the PR addresses an existing Jira issue, 
-include the issue number in the PR title in square brackets (for example, `[PAN-2374]`). 
-1. **Add labels** to identify the type of your PR. _For example, if your PR only changes documentation, add the
-"documentation" label. If it fixes a bug, add the "bug" label._
-1. If the PR address an existing Jira issue, comment in the Jira issue with the PR number. 
+1. **Create a pull-request** (PR) on the EthSigner repository. If the PR addresses an existing GitHub issue, 
+include the issue number in the PR title in square brackets (for example, `[ES-2374]`). 
+1. **Add labels** to identify the type of your PR. _For example, if your PR is not ready to validate,
+add the "work-in-progress" label. If it fixes a bug, add the "bug" label._
+1. If the PR address an existing GitHub issue, comment in the GitHub issue with the PR number. 
 1. **Ensure your changes are reviewed**.
 _Select the reviewers you would like to review your PR.
 If you don't know who to choose, simply select the reviewers proposed by GitHub or leave blank._
@@ -186,9 +183,8 @@ Questions on architectural best practices will be guided by the principles set f
 All code submissions must be accompanied by appropriate automated tests.
 The goal is to provide confidence in the code’s robustness, while avoiding redundant tests.
 
->**Important** 
-> The [`libsodium`](https://download.libsodium.org/doc/installation) library must be installed to 
-run `./gradlew integrationTest`. 
+>**Important**
+> Docker must be running to run `./gradlew acceptanceTest`
 
 ### Pull Requests
 
@@ -198,8 +194,8 @@ The process described here has several goals:
 - Fix problems that are important to users
 - Engage the community in working toward the best possible product
 - Enable a sustainable system for maintainers to review contributions
-- Further explanation on PR & commit messages can be found in this post: 
-[How to Write a Git Commit Message](https://chris.beams.io/posts/git-commit/).
+- Further explanation on PR & commit messages can be found in the 
+[How to Write a Git Commit Message] article by [Chris Beams].
 
 Please follow these steps to have your contribution considered by the approvers:
 
@@ -215,6 +211,7 @@ explaining why you believe the failure is unrelated. A maintainer will re-run th
 If we conclude that the failure was a false positive, then we will open an issue to track that problem 
 with our status check suite.</details>
 
+## Code Review
 While the prerequisites above must be satisfied prior to having your pull request reviewed, the reviewer(s) 
 may ask you to complete additional design work, tests, or other changes before your pull request 
 can be ultimately accepted.  Please refer to [Code Reviews].
@@ -235,21 +232,6 @@ Code style will be checked automatically during a build.
 We have a set of [coding conventions](CODING-CONVENTIONS.md) to which we try to adhere.
 These are not strictly enforced during the build, but should be adhered to and called out in code reviews.
 
-## Documentation Style Guide
-For documentation, we have [documentation guidelines and examples](DOC-STYLE-GUIDE.md). 
-These rules are not automatically enforced but are recommended to make the documentation consistent
- and enhance the user experience.
-
-Also have a look at our [MKDocs Markdown guide](MKDOCS-MARKDOWN-GUIDE.md) if you're not famililar with 
-MarkDown syntax. We also have a number of extensions that are available in the EthSigner documentation described
-in this guide.
-
-## Git Commit Messages & Pull Request Messages
-* Use the present tense ("Add feature" not "Added feature")
-* Use the imperative mood ("Move cursor to..." not "Moves cursor to...")
-* Provide a summary on the first line with more details on additional lines as needed
-* Reference issues and pull requests liberally
-
 # Pull Request Labels
 
 #### Pull Request Labels
@@ -262,7 +244,10 @@ in this guide.
 
 [private@pegasys.tech]: mailto:private@pegasys.tech
 [Gitter]: https://gitter.im/PegaSysEng/EthSigner
-[EthSigner documentation]: Coming soon - check docs in repo for now.
+[Github issues]: https://github.com/PegaSysEng/ethsigner/issues
+[EthSigner documentation]: https://docs.ethsigner.pegasys.tech/
 [CLA.md]: /CLA.md
-[Code Reviews]: /docs/community/code-reviews.md
+[Code Reviews]: /community/code-reviews.md
 [MkDocs]: https://www.mkdocs.org/
+[How to Write a Git Commit Message]: https://chris.beams.io/posts/git-commit/
+[Chris Beams]: https://github.com/cbeams

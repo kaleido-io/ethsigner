@@ -12,16 +12,21 @@
  */
 package tech.pegasys.ethsigner.core.requesthandler;
 
+import static io.netty.handler.codec.http.HttpResponseStatus.BAD_GATEWAY;
 import static io.netty.handler.codec.http.HttpResponseStatus.GATEWAY_TIMEOUT;
 import static io.netty.handler.codec.http.HttpResponseStatus.INTERNAL_SERVER_ERROR;
 
 import java.net.ConnectException;
 import java.time.Duration;
 import java.util.concurrent.TimeoutException;
+import javax.net.ssl.SSLHandshakeException;
 
+import com.google.common.net.HttpHeaders;
+import io.vertx.core.MultiMap;
 import io.vertx.core.buffer.Buffer;
 import io.vertx.core.http.HttpClientRequest;
 import io.vertx.core.http.HttpClientResponse;
+import io.vertx.core.http.impl.headers.VertxHttpHeaders;
 import io.vertx.ext.web.RoutingContext;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -41,6 +46,8 @@ public class VertxRequestTransmitter {
   private void handleException(final RoutingContext context, final Throwable thrown) {
     if (thrown instanceof TimeoutException || thrown instanceof ConnectException) {
       context.fail(GATEWAY_TIMEOUT.code(), thrown);
+    } else if (thrown instanceof SSLHandshakeException) {
+      context.fail(BAD_GATEWAY.code(), thrown);
     } else {
       context.fail(INTERNAL_SERVER_ERROR.code(), thrown);
     }
@@ -75,10 +82,28 @@ public class VertxRequestTransmitter {
       final HttpClientRequest request, final Buffer bodyContent, final RoutingContext context) {
     request.setTimeout(httpRequestTimeout.toMillis());
     request.exceptionHandler(thrown -> handleException(context, thrown));
-    request.headers().setAll(context.request().headers());
-    request.headers().remove("Content-Length"); // created during 'end'.
+    final MultiMap requestHeaders = createHeaders(context.request().headers());
+    request.headers().setAll(requestHeaders);
     request.setChunked(false);
     request.end(bodyContent);
+  }
+
+  private MultiMap createHeaders(final MultiMap headers) {
+    final MultiMap requestHeaders = new VertxHttpHeaders();
+    requestHeaders.addAll(headers);
+    requestHeaders.remove(HttpHeaders.CONTENT_LENGTH);
+    requestHeaders.remove(HttpHeaders.ORIGIN);
+    renameHeader(requestHeaders, HttpHeaders.HOST, HttpHeaders.X_FORWARDED_HOST);
+    return requestHeaders;
+  }
+
+  private void renameHeader(
+      final MultiMap headers, final String oldHeader, final String newHeader) {
+    final String oldHeaderValue = headers.get(oldHeader);
+    headers.remove(oldHeader);
+    if (oldHeaderValue != null) {
+      headers.add(newHeader, oldHeaderValue);
+    }
   }
 
   private void logResponse(final HttpClientResponse response) {

@@ -14,17 +14,18 @@ package tech.pegasys.ethsigner.tests.signing;
 
 import static io.netty.handler.codec.http.HttpResponseStatus.BAD_REQUEST;
 import static org.assertj.core.api.Assertions.assertThat;
-import static tech.pegasys.ethsigner.core.jsonrpc.response.JsonRpcError.INVALID_PARAMS;
+import static tech.pegasys.ethsigner.core.jsonrpc.response.JsonRpcError.REPLAY_PROTECTED_SIGNATURES_NOT_SUPPORTED;
+import static tech.pegasys.ethsigner.core.jsonrpc.response.JsonRpcError.WRONG_CHAIN_ID;
 import static tech.pegasys.ethsigner.tests.dsl.Gas.GAS_PRICE;
 import static tech.pegasys.ethsigner.tests.dsl.Gas.INTRINSIC_GAS;
 
 import tech.pegasys.ethsigner.core.jsonrpc.response.JsonRpcErrorResponse;
 import tech.pegasys.ethsigner.tests.dsl.Account;
 import tech.pegasys.ethsigner.tests.dsl.DockerClientFactory;
+import tech.pegasys.ethsigner.tests.dsl.node.BesuNode;
 import tech.pegasys.ethsigner.tests.dsl.node.Node;
 import tech.pegasys.ethsigner.tests.dsl.node.NodeConfiguration;
 import tech.pegasys.ethsigner.tests.dsl.node.NodeConfigurationBuilder;
-import tech.pegasys.ethsigner.tests.dsl.node.PantheonNode;
 import tech.pegasys.ethsigner.tests.dsl.signer.Signer;
 import tech.pegasys.ethsigner.tests.dsl.signer.SignerConfiguration;
 import tech.pegasys.ethsigner.tests.dsl.signer.SignerConfigurationBuilder;
@@ -33,9 +34,9 @@ import tech.pegasys.ethsigner.tests.dsl.signer.SignerResponse;
 import java.math.BigInteger;
 
 import com.github.dockerjava.api.DockerClient;
-import org.junit.After;
-import org.junit.Before;
-import org.junit.Test;
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
 import org.web3j.protocol.core.methods.request.Transaction;
 import org.web3j.utils.Convert;
 import org.web3j.utils.Convert.Unit;
@@ -54,19 +55,21 @@ public class ReplayProtectionAcceptanceTest {
     return ethSigner.accounts().richBenefactor();
   }
 
-  @Before
+  @BeforeEach
   public void setUp() {
     Runtime.getRuntime().addShutdownHook(new Thread((this::tearDown)));
   }
 
-  @After
-  public void tearDown() {
+  @AfterEach
+  public synchronized void tearDown() {
     if (ethNode != null) {
       ethNode.shutdown();
+      ethNode = null;
     }
 
     if (ethSigner != null) {
       ethSigner.shutdown();
+      ethSigner = null;
     }
   }
 
@@ -75,7 +78,7 @@ public class ReplayProtectionAcceptanceTest {
         new NodeConfigurationBuilder().withGenesis(genesis).build();
     final SignerConfiguration signerConfig = new SignerConfigurationBuilder().build();
 
-    ethNode = new PantheonNode(DOCKER, nodeConfig);
+    ethNode = new BesuNode(DOCKER, nodeConfig);
     ethNode.start();
     ethNode.awaitStartupCompletion();
 
@@ -101,7 +104,7 @@ public class ReplayProtectionAcceptanceTest {
                     TRANSFER_AMOUNT_WEI));
 
     assertThat(signerResponse.status()).isEqualTo(BAD_REQUEST);
-    assertThat(signerResponse.jsonRpc().getError()).isEqualTo(INVALID_PARAMS);
+    assertThat(signerResponse.jsonRpc().getError()).isEqualTo(WRONG_CHAIN_ID);
   }
 
   @Test
@@ -121,6 +124,7 @@ public class ReplayProtectionAcceptanceTest {
                     TRANSFER_AMOUNT_WEI));
 
     assertThat(signerResponse.status()).isEqualTo(BAD_REQUEST);
-    assertThat(signerResponse.jsonRpc().getError()).isEqualTo(INVALID_PARAMS);
+    assertThat(signerResponse.jsonRpc().getError())
+        .isEqualTo(REPLAY_PROTECTED_SIGNATURES_NOT_SUPPORTED);
   }
 }

@@ -13,7 +13,9 @@
 package tech.pegasys.ethsigner;
 
 import tech.pegasys.ethsigner.core.EthSigner;
-import tech.pegasys.ethsigner.core.signing.TransactionSigner;
+import tech.pegasys.ethsigner.core.InitializationException;
+import tech.pegasys.signers.secp256k1.api.TransactionSignerProvider;
+import tech.pegasys.signers.secp256k1.common.TransactionSignerInitializationException;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -26,12 +28,22 @@ public abstract class SignerSubCommand implements Runnable {
 
   @CommandLine.ParentCommand private EthSignerBaseCommand config;
 
-  public abstract TransactionSigner createSigner();
+  public abstract TransactionSignerProvider createSignerFactory()
+      throws TransactionSignerInitializationException;
 
   public abstract String getCommandName();
 
+  protected void validateArgs() throws InitializationException {
+    if (config != null) {
+      config.validateArgs();
+    }
+  }
+
   @Override
-  public void run() {
+  public void run() throws TransactionSignerInitializationException {
+
+    validateArgs();
+
     // set log level per CLI flags
     System.out.println("Setting logging level to " + config.getLogLevel().name());
     Configurator.setAllLevels("", config.getLogLevel());
@@ -39,9 +51,7 @@ public abstract class SignerSubCommand implements Runnable {
     LOG.debug("Configuration = {}", this);
     LOG.info("Version = {}", ApplicationInfo.version());
 
-    final TransactionSigner transactionSigner = createSigner();
-
-    final EthSigner signer = new EthSigner(config, transactionSigner);
+    final EthSigner signer = new EthSigner(config, createSignerFactory());
     signer.run();
   }
 }

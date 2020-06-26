@@ -15,25 +15,47 @@ package tech.pegasys.ethsigner.tests;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import tech.pegasys.ethsigner.tests.dsl.http.HttpResponse;
-
-import java.net.SocketTimeoutException;
+import tech.pegasys.ethsigner.tests.dsl.node.NodeConfiguration;
+import tech.pegasys.ethsigner.tests.dsl.node.NodeConfigurationBuilder;
+import tech.pegasys.ethsigner.tests.dsl.node.NodePorts;
+import tech.pegasys.ethsigner.tests.dsl.signer.Signer;
+import tech.pegasys.ethsigner.tests.dsl.signer.SignerConfiguration;
+import tech.pegasys.ethsigner.tests.dsl.signer.SignerConfigurationBuilder;
 
 import io.netty.handler.codec.http.HttpResponseStatus;
-import org.junit.Test;
+import org.junit.jupiter.api.AfterAll;
+import org.junit.jupiter.api.BeforeAll;
+import org.junit.jupiter.api.Test;
 
-public class UpCheckAcceptanceTest extends AcceptanceTestBase {
+public class UpCheckAcceptanceTest {
 
   private static final String UP_CHECK_PATH = "/upcheck";
   private static final String UP_CHECK_MESSAGE = "I'm up!";
-  private static final String TIMEOUT_MESSAGE = "timeout";
 
-  @Test
-  public void getRequestWithWrongPathMustTimeout() {
-    final SocketTimeoutException reply =
-        ethSigner().httpRequests().getExceptingTimeout(UP_CHECK_PATH + "Noise");
+  private static Signer ethSigner;
 
-    assertThat(reply).isNotNull();
-    assertThat(reply.getMessage()).isEqualTo(TIMEOUT_MESSAGE);
+  private Signer ethSigner() {
+    return ethSigner;
+  }
+
+  @BeforeAll
+  public static void setUpBase() {
+    Runtime.getRuntime().addShutdownHook(new Thread(UpCheckAcceptanceTest::tearDownBase));
+
+    final NodeConfiguration nodeConfig = new NodeConfigurationBuilder().build();
+    final SignerConfiguration signerConfig = new SignerConfigurationBuilder().build();
+
+    ethSigner = new Signer(signerConfig, nodeConfig, new NodePorts(1, 2));
+    ethSigner.start();
+    ethSigner.awaitStartupCompletion();
+  }
+
+  @AfterAll
+  static synchronized void tearDownBase() {
+    if (ethSigner != null) {
+      ethSigner.shutdown();
+      ethSigner = null;
+    }
   }
 
   @Test
@@ -42,32 +64,5 @@ public class UpCheckAcceptanceTest extends AcceptanceTestBase {
 
     assertThat(reply.status()).isEqualTo(HttpResponseStatus.OK);
     assertThat(reply.body()).isEqualTo(UP_CHECK_MESSAGE);
-  }
-
-  @Test
-  public void postRequestMustTimeout() {
-    final SocketTimeoutException reply =
-        ethSigner().httpRequests().postExceptingTimeout(UP_CHECK_PATH);
-
-    assertThat(reply).isNotNull();
-    assertThat(reply.getMessage()).isEqualTo(TIMEOUT_MESSAGE);
-  }
-
-  @Test
-  public void putRequestMustTimeout() {
-    final SocketTimeoutException reply =
-        ethSigner().httpRequests().putExceptingTimeout(UP_CHECK_PATH);
-
-    assertThat(reply).isNotNull();
-    assertThat(reply.getMessage()).isEqualTo(TIMEOUT_MESSAGE);
-  }
-
-  @Test
-  public void deleteRequestMustTimeout() {
-    final SocketTimeoutException reply =
-        ethSigner().httpRequests().deleteExceptingTimeout(UP_CHECK_PATH);
-
-    assertThat(reply).isNotNull();
-    assertThat(reply.getMessage()).isEqualTo(TIMEOUT_MESSAGE);
   }
 }

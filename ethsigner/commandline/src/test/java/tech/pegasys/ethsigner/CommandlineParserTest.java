@@ -13,27 +13,37 @@
 package tech.pegasys.ethsigner;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static tech.pegasys.ethsigner.CmdlineHelpers.modifyField;
+import static tech.pegasys.ethsigner.CmdlineHelpers.removeFieldsFrom;
+import static tech.pegasys.ethsigner.CmdlineHelpers.validBaseCommandOptions;
 import static tech.pegasys.ethsigner.CommandlineParser.MISSING_SUBCOMMAND_ERROR;
+import static tech.pegasys.ethsigner.util.CommandLineParserAssertions.parseCommandLineWithMissingParamsShowsError;
 
-import java.io.ByteArrayOutputStream;
-import java.io.PrintStream;
+import tech.pegasys.ethsigner.core.config.ClientAuthConstraints;
+import tech.pegasys.ethsigner.core.config.tls.client.ClientTlsOptions;
+
+import java.io.File;
+import java.io.PrintWriter;
+import java.io.StringWriter;
 import java.net.InetAddress;
-import java.net.UnknownHostException;
 import java.time.Duration;
+import java.util.List;
+import java.util.Optional;
 import java.util.function.Supplier;
 
 import org.apache.logging.log4j.Level;
-import org.junit.Before;
-import org.junit.Test;
-import org.junit.runner.RunWith;
-import org.mockito.junit.MockitoJUnitRunner;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 import picocli.CommandLine;
 
-@RunWith(MockitoJUnitRunner.class)
-public class CommandlineParserTest {
+class CommandlineParserTest {
 
-  private final ByteArrayOutputStream commandOutput = new ByteArrayOutputStream();
-  private final PrintStream outPrintStream = new PrintStream(commandOutput);
+  private final StringWriter commandOutput = new StringWriter();
+  private final StringWriter commandError = new StringWriter();
+  private final PrintWriter outputWriter = new PrintWriter(commandOutput, true);
+  private final PrintWriter errorWriter = new PrintWriter(commandError, true);
 
   private EthSignerBaseCommand config;
   private CommandlineParser parser;
@@ -41,11 +51,11 @@ public class CommandlineParserTest {
   private String defaultUsageText;
   private String nullCommandHelp;
 
-  @Before
-  public void setup() {
+  @BeforeEach
+  void setup() {
     subCommand = new NullSignerSubCommand();
     config = new EthSignerBaseCommand();
-    parser = new CommandlineParser(config, outPrintStream);
+    parser = new CommandlineParser(config, outputWriter, errorWriter);
     parser.registerSigner(subCommand);
 
     final CommandLine commandLine = new CommandLine(new EthSignerBaseCommand());
@@ -55,104 +65,116 @@ public class CommandlineParserTest {
         commandLine.getSubcommands().get(subCommand.getCommandName()).getUsageMessage();
   }
 
-  private String parentCommandOptionsOnly() {
-    return "--downstream-http-host=8.8.8.8 "
-        + "--downstream-http-port=5000 "
-        + "--downstream-http-request-timeout=10 "
-        + "--http-listen-port=5001 "
-        + "--http-listen-host=localhost "
-        + "--chain-id=6 "
-        + "--logging=INFO ";
-  }
-
-  private String removeFieldFrom(final String input, final String fieldname) {
-    return input.replaceAll("--" + fieldname + "=.*?(\\s|$)", "");
-  }
-
-  private String modifyField(final String input, final String fieldname, final String value) {
-    return input.replaceFirst("--" + fieldname + "=.*\\b", "--" + fieldname + "=" + value);
-  }
-
   @Test
-  public void fullyPopulatedCommandLineParsesIntoVariables() throws UnknownHostException {
-    final boolean result =
-        parser.parseCommandLine(
-            (parentCommandOptionsOnly() + subCommand.getCommandName()).split(" "));
+  void fullyPopulatedCommandLineParsesIntoVariables() {
+    final List<String> cmdLine = validBaseCommandOptions();
+    cmdLine.add(subCommand.getCommandName());
+    final boolean result = parser.parseCommandLine(cmdLine.toArray(String[]::new));
 
     assertThat(result).isTrue();
 
+    final ClientAuthConstraints tlsClientConstaints =
+        config.getTlsOptions().get().getClientAuthConstraints().get();
+
     assertThat(config.getLogLevel()).isEqualTo(Level.INFO);
-    assertThat(config.getDownstreamHttpHost()).isEqualTo(InetAddress.getByName("8.8.8.8"));
+    assertThat(config.getDownstreamHttpHost()).isEqualTo("8.8.8.8");
     assertThat(config.getDownstreamHttpPort()).isEqualTo(5000);
+    assertThat(config.getDownstreamHttpPath()).isEqualTo("/v3/projectid");
     assertThat(config.getDownstreamHttpRequestTimeout()).isEqualTo(Duration.ofSeconds(10));
-    assertThat(config.getHttpListenHost()).isEqualTo(InetAddress.getByName("localhost"));
+    assertThat(config.getHttpListenHost()).isEqualTo("localhost");
     assertThat(config.getHttpListenPort()).isEqualTo(5001);
+    assertThat(config.getCorsAllowedOrigins()).isEmpty();
+    assertThat(config.getTlsOptions()).isNotEmpty();
+    assertThat(config.getTlsOptions().get().getKeyStoreFile())
+        .isEqualTo(new File("./keystore.pfx"));
+    assertThat(config.getTlsOptions().get().getKeyStorePasswordFile())
+        .isEqualTo(new File("./keystore.passwd"));
+    assertThat(tlsClientConstaints.getKnownClientsFile())
+        .isEqualTo(Optional.of(new File("./known_clients")));
+    assertThat(tlsClientConstaints.isCaAuthorizedClientAllowed()).isTrue();
+
+    final Optional<ClientTlsOptions> downstreamTlsOptionsOptional = config.getClientTlsOptions();
+    assertThat(downstreamTlsOptionsOptional.isPresent()).isTrue();
   }
 
   @Test
-  public void mainCommandHelpIsDisplayedWhenNoOptionsOtherThanHelp() {
+  void mainCommandHelpIsDisplayedWhenNoOptionsOtherThanHelp() {
     final boolean result = parser.parseCommandLine("--help");
     assertThat(result).isTrue();
     assertThat(commandOutput.toString()).isEqualTo(defaultUsageText);
   }
 
   @Test
-  public void mainCommandHelpIsDisplayedWhenNoOptionsOtherThanHelpWithoutDashes() {
+  void mainCommandHelpIsDisplayedWhenNoOptionsOtherThanHelpWithoutDashes() {
     final boolean result = parser.parseCommandLine("help");
     assertThat(result).isTrue();
     assertThat(commandOutput.toString()).containsOnlyOnce(defaultUsageText);
   }
 
   @Test
-  public void reverseHelpRequestShowsSubCommandHelp() {
+  void reverseHelpRequestShowsSubCommandHelp() {
     final boolean result = parser.parseCommandLine("help", subCommand.getCommandName());
     assertThat(result).isTrue();
     assertThat(commandOutput.toString()).isEqualTo(nullCommandHelp);
   }
 
   @Test
-  public void missingSubCommandShowsErrorAndUsageText() {
-    final boolean result = parser.parseCommandLine(parentCommandOptionsOnly().split(" "));
+  void missingSubCommandShowsErrorAndUsageText() {
+    final boolean result =
+        parser.parseCommandLine(validBaseCommandOptions().toArray(String[]::new));
     assertThat(result).isFalse();
-    assertThat(commandOutput.toString())
-        .contains(MISSING_SUBCOMMAND_ERROR + "\n" + defaultUsageText);
+    assertThat(commandError.toString()).contains(MISSING_SUBCOMMAND_ERROR);
+    assertThat(commandOutput.toString()).contains(defaultUsageText);
   }
 
   @Test
-  public void nonIntegerInputForDownstreamPortShowsError() {
-    final String args = modifyField(parentCommandOptionsOnly(), "downstream-http-port", "abc");
-    final boolean result = parser.parseCommandLine(args.split(" "));
+  void nonIntegerInputForDownstreamPortShowsError() {
+    final List<String> args = modifyField(validBaseCommandOptions(), "downstream-http-port", "abc");
+    final boolean result = parser.parseCommandLine(args.toArray(String[]::new));
     assertThat(result).isFalse();
-    assertThat(commandOutput.toString()).contains("--downstream-http-port", "'abc' is not an int");
+    assertThat(commandError.toString()).contains("--downstream-http-port", "'abc' is not an int");
     assertThat(commandOutput.toString()).containsOnlyOnce(defaultUsageText);
-    assertThat(commandOutput.toString()).endsWith(defaultUsageText);
   }
 
   @Test
-  public void missingRequiredParamShowsAppropriateError() {
-    missingParameterShowsError("downstream-http-port");
+  void missingRequiredParamShowsAppropriateError() {
+    parseCommandLineWithMissingParamsShowsError(
+        parser,
+        commandOutput,
+        commandError,
+        defaultUsageText,
+        validBaseCommandOptions(),
+        List.of("downstream-http-port"));
   }
 
   @Test
-  public void missingLoggingDefaultsToInfoLevel() {
+  void missingLoggingDefaultsToInfoLevel() {
     // Must recreate config before executions, to prevent stale data remaining in the object.
     missingOptionalParameterIsValidAndMeetsDefault("logging", config::getLogLevel, Level.INFO);
   }
 
   @Test
-  public void missingDownStreamHostDefaultsToLoopback() {
+  void missingDownstreamHostDefaultsToLoopback() {
     missingOptionalParameterIsValidAndMeetsDefault(
-        "downstream-http-host", config::getDownstreamHttpHost, InetAddress.getLoopbackAddress());
+        "downstream-http-host",
+        config::getDownstreamHttpHost,
+        InetAddress.getLoopbackAddress().getHostAddress());
   }
 
   @Test
-  public void missingDownStreamPortDefaultsTo8545() {
+  void missingDownstreamPortDefaultsTo8545() {
     missingOptionalParameterIsValidAndMeetsDefault(
         "http-listen-port", config::getHttpListenPort, 8545);
   }
 
   @Test
-  public void missingDownstreamTimeoutDefaultsToFiveSeconds() {
+  void missingDownstreamPathDefaultsToRootPath() {
+    missingOptionalParameterIsValidAndMeetsDefault(
+        "downstream-http-path", config::getDownstreamHttpPath, "/");
+  }
+
+  @Test
+  void missingDownstreamTimeoutDefaultsToFiveSeconds() {
     missingOptionalParameterIsValidAndMeetsDefault(
         "downstream-http-request-timeout",
         config::getDownstreamHttpRequestTimeout,
@@ -160,23 +182,24 @@ public class CommandlineParserTest {
   }
 
   @Test
-  public void missingListenHostDefaultsToLoopback() {
+  void missingListenHostDefaultsToLoopback() {
     missingOptionalParameterIsValidAndMeetsDefault(
-        "http-listen-host", config::getHttpListenHost, InetAddress.getLoopbackAddress());
+        "http-listen-host",
+        config::getHttpListenHost,
+        InetAddress.getLoopbackAddress().getHostAddress());
   }
 
   @Test
-  public void illegalSubCommandDisplaysErrorMessage() {
+  void illegalSubCommandDisplaysErrorMessage() {
     // NOTE: all required params must be specified
-    final boolean result =
-        parser.parseCommandLine("--downstream-http-port=8500", "--chain-id=1", "illegalSubCommand");
+    parser.parseCommandLine("--downstream-http-port=8500", "--chain-id=1", "illegalSubCommand");
     assertThat(commandOutput.toString())
         .containsOnlyOnce("Did you mean: " + subCommand.getCommandName());
     assertThat(commandOutput.toString()).doesNotContain(defaultUsageText);
   }
 
   @Test
-  public void misspeltCommandLineOptionDisplaysErrorMessage() {
+  void misspeltCommandLineOptionDisplaysErrorMessage() {
     final boolean result =
         parser.parseCommandLine(
             "--downstream-http-port=8500",
@@ -187,39 +210,179 @@ public class CommandlineParserTest {
     assertThat(commandOutput.toString()).containsOnlyOnce(defaultUsageText);
   }
 
-  private void missingParameterShowsError(final String paramToRemove) {
-    final String cmdLine = removeFieldFrom(parentCommandOptionsOnly(), paramToRemove);
-    final boolean result = parser.parseCommandLine(cmdLine.split(" "));
-    assertThat(result).isFalse();
-    assertThat(commandOutput.toString()).contains("--" + paramToRemove, "Missing");
-    assertThat(commandOutput.toString()).containsOnlyOnce(defaultUsageText);
-  }
-
   private <T> void missingOptionalParameterIsValidAndMeetsDefault(
       final String paramToRemove, final Supplier<T> actualValueGetter, final T expectedValue) {
 
-    String cmdLine = removeFieldFrom(parentCommandOptionsOnly(), paramToRemove);
-    cmdLine += subCommand.getCommandName();
+    List<String> cmdLine = removeFieldsFrom(validBaseCommandOptions(), paramToRemove);
+    cmdLine.add(subCommand.getCommandName());
 
-    final boolean result = parser.parseCommandLine(cmdLine.split(" "));
+    final boolean result = parser.parseCommandLine(cmdLine.toArray(String[]::new));
     assertThat(result).isTrue();
     assertThat(actualValueGetter.get()).isEqualTo(expectedValue);
     assertThat(commandOutput.toString()).isEmpty();
   }
 
   @Test
-  public void domainNamesDecodeIntoAnInetAddress() {
-    final String input =
-        "--downstream-http-host=google.com "
-            + "--downstream-http-port=5000 "
-            + "--downstream-http-request-timeout=10000 "
-            + "--http-listen-port=5001 "
-            + "--http-listen-host=localhost "
-            + "--chain-id=6 "
-            + "--logging=INFO";
-    final String[] inputArgs = input.split(" ");
+  void creatingSignerDisplaysFailureToCreateSignerText() {
+    subCommand = new NullSignerSubCommand(true);
+    config = new EthSignerBaseCommand();
+    parser = new CommandlineParser(config, outputWriter, errorWriter);
+    parser.registerSigner(subCommand);
 
-    parser.parseCommandLine(inputArgs);
-    assertThat(config.getDownstreamHttpHost().getHostName()).isEqualTo("google.com");
+    List<String> cmdLine = validBaseCommandOptions();
+    cmdLine.add(subCommand.getCommandName());
+    final boolean result = parser.parseCommandLine(cmdLine.toArray(String[]::new));
+
+    assertThat(result).isFalse();
+    assertThat(commandError.toString())
+        .contains(
+            CommandlineParser.SIGNER_CREATION_ERROR
+                + System.lineSeparator()
+                + "Cause: "
+                + NullSignerSubCommand.ERROR_MSG);
+    assertThat(commandOutput.toString()).contains(nullCommandHelp);
+  }
+
+  @Test
+  void settingTlsKnownClientAndDisablingClientAuthenticationShowsError() {
+    List<String> cmdLine = validBaseCommandOptions();
+    cmdLine.add("--tls-allow-any-client");
+    final boolean result = parser.parseCommandLine(cmdLine.toArray(String[]::new));
+    assertThat(result).isFalse();
+    assertThat(commandError.toString()).contains("expected only one match but got");
+  }
+
+  @Test
+  void tlsClientAuthenticationCanBeDisabledByRemovingKnownClientsAndSettingOption() {
+    List<String> cmdLine = validBaseCommandOptions();
+    cmdLine = removeFieldsFrom(cmdLine, "tls-known-clients-file", "tls-allow-ca-clients");
+    cmdLine.add("--tls-allow-any-client");
+    cmdLine.add(subCommand.getCommandName());
+    final boolean result = parser.parseCommandLine(cmdLine.toArray(String[]::new));
+
+    assertThat(result).isTrue();
+    assertThat(config.getTlsOptions().get().getClientAuthConstraints()).isEmpty();
+  }
+
+  @Test
+  void notExplicitlySettingTlsClientAuthFailsParsing() {
+    List<String> cmdLine = validBaseCommandOptions();
+    cmdLine = removeFieldsFrom(cmdLine, "tls-known-clients-file", "tls-allow-ca-clients");
+    cmdLine.add(subCommand.getCommandName());
+    final boolean result = parser.parseCommandLine(cmdLine.toArray(String[]::new));
+
+    assertThat(result).isFalse();
+  }
+
+  @Test
+  void parsingShouldFailIfTlsDisableClientAuthenticationHasAValue() {
+    List<String> cmdLine = validBaseCommandOptions();
+    cmdLine = removeFieldsFrom(cmdLine, "tls-known-clients-file", "tls-allow-ca-clients");
+    cmdLine.add("--tls-allow-any-client=false");
+    cmdLine.add(subCommand.getCommandName());
+    final boolean result = parser.parseCommandLine(cmdLine.toArray(String[]::new));
+
+    assertThat(result).isFalse();
+    assertThat(commandError.toString()).contains("--tls-allow-any-client");
+    assertThat(commandError.toString()).contains("should be specified without 'false' parameter");
+  }
+
+  @Test
+  void missingTlsClientWhitelistIsValidIfCaIsSpecified() {
+    missingOptionalParameterIsValidAndMeetsDefault(
+        "tls-known-clients-file",
+        () -> config.getTlsOptions().get().getClientAuthConstraints().get().getKnownClientsFile(),
+        Optional.empty());
+  }
+
+  @Test
+  void missingTlsKeyStorePasswordShowsErrorWhenKeystorePasswordIsSet() {
+    parseCommandLineWithMissingParamsShowsError(
+        parser,
+        commandOutput,
+        commandError,
+        defaultUsageText,
+        validBaseCommandOptions(),
+        List.of("tls-keystore-file"));
+  }
+
+  @Test
+  void missingTlsPasswordFileShowsErrorWhenKeyStoreIsSet() {
+    parseCommandLineWithMissingParamsShowsError(
+        parser,
+        commandOutput,
+        commandError,
+        defaultUsageText,
+        validBaseCommandOptions(),
+        List.of("tls-keystore-password-file"));
+  }
+
+  @Test
+  void specifyingOnlyTheTlsClientWhiteListShowsError() {
+    parseCommandLineWithMissingParamsShowsError(
+        parser,
+        commandOutput,
+        commandError,
+        defaultUsageText,
+        validBaseCommandOptions(),
+        List.of("tls-keystore-file", "tls-keystore-password-file"));
+  }
+
+  @Test
+  void ethSignerStartsValidlyIfNoTlsOptionsAreSet() {
+    List<String> cmdLine = validBaseCommandOptions();
+    cmdLine =
+        removeFieldsFrom(
+            cmdLine,
+            "tls-keystore-file",
+            "tls-keystore-password-file",
+            "tls-known-clients-file",
+            "tls-allow-ca-clients");
+    cmdLine.add(subCommand.getCommandName());
+    final boolean result = parser.parseCommandLine(cmdLine.toArray(String[]::new));
+
+    assertThat(result).isTrue();
+    assertThat(config.getTlsOptions()).isEmpty();
+  }
+
+  @ParameterizedTest
+  @ValueSource(strings = {"=", " ", "&", "?", "#"})
+  void illegalDownStreamPathThrowsException(final String illegalChar) {
+    List<String> cmdLine = validBaseCommandOptions();
+    cmdLine = removeFieldsFrom(cmdLine, "downstream-http-path");
+    cmdLine.add("--downstream-http-path=path1/" + illegalChar + "path2 ");
+    cmdLine.add(subCommand.getCommandName());
+    final boolean result = parser.parseCommandLine(cmdLine.toArray(String[]::new));
+    assertThat(result).isFalse();
+  }
+
+  @Test
+  void configContainsCorsValueSetOnCmdline() {
+    final List<String> cmdLine = validBaseCommandOptions();
+    cmdLine.add("--http-cors-origins=sample.com");
+    cmdLine.add(subCommand.getCommandName());
+    final boolean result = parser.parseCommandLine(cmdLine.toArray(String[]::new));
+    assertThat(result).isTrue();
+    assertThat(config.getCorsAllowedOrigins()).containsOnly("sample.com");
+  }
+
+  @Test
+  void corsCanBeACommaSeparatedList() {
+    final List<String> cmdLine = validBaseCommandOptions();
+    cmdLine.add("--http-cors-origins=sample.com,mydomain.com");
+    cmdLine.add(subCommand.getCommandName());
+    final boolean result = parser.parseCommandLine(cmdLine.toArray(String[]::new));
+    assertThat(result).isTrue();
+    assertThat(config.getCorsAllowedOrigins()).contains("sample.com", "mydomain.com");
+  }
+
+  @Test
+  void corsValueOfNoneLiteralProducesEmptyListInConfig() {
+    final List<String> cmdLine = validBaseCommandOptions();
+    cmdLine.add("--http-cors-origins=none");
+    cmdLine.add(subCommand.getCommandName());
+    final boolean result = parser.parseCommandLine(cmdLine.toArray(String[]::new));
+    assertThat(result).isTrue();
+    assertThat(config.getCorsAllowedOrigins()).isEmpty();
   }
 }

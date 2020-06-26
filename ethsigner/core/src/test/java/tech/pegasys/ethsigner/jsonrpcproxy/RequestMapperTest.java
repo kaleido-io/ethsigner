@@ -17,19 +17,19 @@ import static org.assertj.core.api.Java6Assertions.assertThat;
 import tech.pegasys.ethsigner.core.http.RequestMapper;
 import tech.pegasys.ethsigner.core.requesthandler.JsonRpcRequestHandler;
 
-import org.junit.Test;
-import org.junit.runner.RunWith;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
-import org.mockito.junit.MockitoJUnitRunner;
+import org.mockito.junit.jupiter.MockitoExtension;
 
-@RunWith(MockitoJUnitRunner.class)
+@ExtendWith(MockitoExtension.class)
 public class RequestMapperTest {
   @Mock private JsonRpcRequestHandler defaultHandler;
   @Mock private JsonRpcRequestHandler handler1;
   @Mock private JsonRpcRequestHandler handler2;
 
   @Test
-  public void returnsHandleForAssociatedRpcMethod() {
+  public void returnsHandlerForAssociatedRpcMethod() {
     final RequestMapper requestMapper = new RequestMapper(defaultHandler);
     requestMapper.addHandler("foo", handler1);
     requestMapper.addHandler("bar", handler2);

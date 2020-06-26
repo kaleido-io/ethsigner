@@ -13,12 +13,12 @@
 
 
 jar {
-  baseName 'ethsigner'
+  archiveBaseName = 'ethsigner'
   manifest {
     attributes(
-      'Specification-Title': baseName,
+      'Specification-Title': archiveBaseName,
       'Specification-Version': project.version,
-      'Implementation-Title': baseName,
+      'Implementation-Title': archiveBaseName,
       'Implementation-Version': calculateVersion()
       )
   }
@@ -28,20 +28,13 @@ jar {
 dependencies {
 
   implementation project(':ethsigner:core')
-  implementation project(':ethsigner:signing-api')
-  implementation project(':ethsigner:signer:hashicorp')
-  implementation project(':ethsigner:signer:file-based')
+  implementation project(':ethsigner:subcommands')
   implementation project(':ethsigner:commandline')
 
+  implementation 'tech.pegasys.signers.internal:signing-secp256k1-api'
   implementation 'com.google.guava:guava'
-
   implementation 'org.apache.logging.log4j:log4j-api'
-  runtime 'org.apache.logging.log4j:log4j-core'
-  runtime 'org.apache.logging.log4j:log4j-slf4j-impl'
 
-
-  testImplementation project(':ethsigner:core')
-  testImplementation 'junit:junit'
-  testImplementation 'org.assertj:assertj-core'
-  testImplementation 'org.mockito:mockito-core'
+  runtimeOnly 'org.apache.logging.log4j:log4j-core'
+  runtimeOnly 'org.apache.logging.log4j:log4j-slf4j-impl'
 }

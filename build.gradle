@@ -13,18 +13,48 @@
 
 import net.ltgt.gradle.errorprone.CheckSeverity
 
+import java.text.SimpleDateFormat
+
 plugins {
-  id 'com.diffplug.gradle.spotless' version '3.17.0'
+  id 'com.diffplug.gradle.spotless' version '3.27.1'
   id 'com.jfrog.bintray' version '1.8.4'
-  id 'com.github.ben-manes.versions' version '0.20.0'
+  id 'com.github.ben-manes.versions' version '0.27.0'
   id 'com.github.hierynomus.license' version '0.15.0'
-  id 'io.spring.dependency-management' version '1.0.6.RELEASE'
-  id 'me.champeau.gradle.jmh' version '0.4.8' apply false
-  id 'net.ltgt.errorprone' version '0.6.1'
-  id 'net.researchgate.release' version '2.7.0'
+  id 'io.spring.dependency-management' version '1.0.9.RELEASE'
+  id 'me.champeau.gradle.jmh' version '0.5.0' apply false
+  id 'net.ltgt.errorprone' version '1.1.1'
+  id 'net.researchgate.release' version '2.8.1'
 }
 
-group = 'tech.pegasys.ethsigner'
+String projectName = "EthSigner"
+String repositoryName = projectName.toLowerCase()
+String projectHome = projectName.toUpperCase() + "_HOME"
+
+
+if (!JavaVersion.current().java11Compatible) {
+  throw new GradleException("Java 11 or later is required to build " + projectName + ".\n" +
+  "  Detected version ${JavaVersion.current()}")
+}
+
+def bintrayUser = project.hasProperty('bintrayUser') ? project.property('bintrayUser') : System.getenv('BINTRAY_USER')
+def bintrayKey = project.hasProperty('bintrayApiKey') ? project.property('bintrayApiKey') : System.getenv('BINTRAY_KEY')
+def bintrayPackage = bintray.pkg {
+  repo = 'pegasys-repo'
+  name = repositoryName
+  userOrg = 'consensys'
+  licenses = ['Apache-2.0']
+  websiteUrl = 'https://github.com/PegaSysEng/' + repositoryName
+  issueTrackerUrl = 'https://github.com/PegaSysEng/' + repositoryName + '/issues'
+  vcsUrl = 'https://github.com/PegaSysEng/' + repositoryName + '.git'
+
+  version {
+    name = project.version
+    released = new Date()
+  }
+}
+
+
+group = 'tech.pegasys.' + repositoryName
 
 defaultTasks 'build', 'checkLicenses', 'javadoc'
 
@@ -54,7 +84,7 @@ def _strListCmdArg(name, defaultValue) {
   if (!project.hasProperty(name))
     return defaultValue
 
-  return ((String)project.property(name)).tokenize(',')
+  return ((String) project.property(name)).tokenize(',')
 }
 
 def _strListCmdArg(name) {
@@ -72,28 +102,28 @@ allprojects {
 
   version = rootProject.version
 
-  jacoco { toolVersion = '0.8.2' }
+  jacoco { toolVersion = '0.8.5' }
 
-  sourceCompatibility = '1.8'
-  targetCompatibility = '1.8'
+  task sourcesJar(type: Jar, dependsOn: classes) {
+    classifier = 'sources'
+    from sourceSets.main.allSource
+  }
+
+  task javadocJar(type: Jar, dependsOn: javadoc) {
+    classifier = 'javadoc'
+    from javadoc.destinationDir
+  }
+
+  sourceCompatibility = 11
+  targetCompatibility = 11
 
   repositories {
-    if ("$System.env.JENKINS_URL" == 'https://jenkins.pegasys.tech/') {
-      maven { url "https://nexus.int.pegasys.tech/repository/consensys-pegasys/" }
-      maven { url "https://nexus.int.pegasys.tech/repository/jcenter/" }
-    } else {
-      jcenter()
-      mavenCentral()
-      maven { url  "https://consensys.bintray.com/pegasys-repo" }
-    }
+    jcenter()
+    mavenCentral()
+    maven { url "https://consensys.bintray.com/pegasys-repo" }
   }
 
-  dependencies {
-    errorprone("com.google.errorprone:error_prone_core")
-    if (JavaVersion.current().isJava8()) {
-      errorproneJavac("com.google.errorprone:javac")
-    }
-  }
+  dependencies { errorprone("com.google.errorprone:error_prone_core") }
 
   apply plugin: 'com.diffplug.gradle.spotless'
   spotless {
@@ -136,7 +166,7 @@ allprojects {
     ]
 
     options.errorprone {
-      excludedPaths '.*/(generated/*.*|.*ReferenceTest_.*)'
+      excludedPaths = '.*/(generated/*.*|.*ReferenceTest_.*)'
 
       // Our equals need to be symmetric, this checker doesn't respect that.
       check('EqualsGetClass', CheckSeverity.OFF)
@@ -148,6 +178,8 @@ allprojects {
       check('UnnecessaryParentheses', CheckSeverity.OFF)
       // Lazy impl causes excess CPU usage O(n) of non-final fiield when it should be O(1).
       check('FieldCanBeFinal', CheckSeverity.OFF)
+      // Incorrectly fires when there are no java.time.* alternatives
+      check('PreferJavaTimeOverload', CheckSeverity.OFF)
 
       check('InsecureCryptoUsage', CheckSeverity.WARN)
       check('WildcardImport', CheckSeverity.WARN)
@@ -177,7 +209,13 @@ allprojects {
   test {
     jvmArgs = [
       '-Xmx4g',
-      '-XX:-UseGCOverheadLimit'
+      '-XX:-UseGCOverheadLimit',
+      // Mockito and jackson-databind do some strange reflection during tests.
+      // This suppresses an illegal access warning.
+      '--add-opens',
+      'java.base/java.util=ALL-UNNAMED',
+      '--add-opens',
+      'java.base/java.util.concurrent=ALL-UNNAMED'
     ]
     Set toImport = [
       'root.log.level',
@@ -188,16 +226,13 @@ allprojects {
         systemProperty name, System.getProperty(name)
       }
     }
+
+    useJUnitPlatform()
   }
 
-  // Normalise Xdoclint behaviour across JDKs (OpenJDK 8 is more lenient than Oracle JDK by default).
   javadoc {
     options.addStringOption('Xdoclint:all', '-quiet')
-    if (JavaVersion.current() == JavaVersion.VERSION_1_8) {
-      options.addStringOption('Xwerror', '-quiet')
-    } else {
-      options.addStringOption('Xwerror', '-html5')
-    }
+    options.addStringOption('Xwerror', '-html5')
     options.encoding = 'UTF-8'
   }
 
@@ -208,6 +243,55 @@ task deploy() {}
 
 subprojects {
 
+  if (file('src/main/java').directory) {
+    apply plugin: 'com.jfrog.bintray'
+    apply plugin: 'maven-publish'
+
+    publishing {
+      publications {
+        mavenJava(MavenPublication) {
+          groupId String.format("tech.pegasys.%s.internal", repositoryName)
+          version "${project.version}"
+          from components.java
+          artifact sourcesJar
+          artifact javadocJar
+          versionMapping {
+            usage('java-api') { fromResolutionOf('runtimeClasspath') }
+            usage('java-runtime') { fromResolutionResult() }
+          }
+          pom {
+            name = projectName + " -  ${project.name}"
+            url = 'http://github.com/PegaSysEng/' + repositoryName
+            licenses {
+              license {
+                name = 'The Apache License, Version 2.0'
+                url = 'http://www.apache.org/licenses/LICENSE-2.0.txt'
+              }
+            }
+            scm {
+              def hostPath = 'github.com/PegasysEng/' + repositoryName + '.git'
+              connection = 'scm:git:git://' + hostPath
+              developerConnection = 'scm:git:ssh://' + hostPath
+              url = 'https://github.com/PegaSysEng/' + repositoryName
+            }
+          }
+        }
+      }
+    }
+
+    bintray {
+      user = bintrayUser
+      key = bintrayKey
+
+      publications = ['mavenJava']
+      override = version.endsWith('SNAPSHOT')
+
+      publish = true
+
+      pkg = bintrayPackage
+    }
+  }
+
   tasks.withType(Test) {
     // If GRADLE_MAX_TEST_FORKS is not set, use half the available processors
     maxParallelForks = (System.getenv('GRADLE_MAX_TEST_FORKS') ?: (Runtime.runtime.availableProcessors().intdiv(2) ?: 1)).toInteger()
@@ -217,7 +301,6 @@ subprojects {
     options.fork = true
     options.incremental = true
   }
-  apply plugin: 'maven-publish'
 
   sourceSets {
     // test-support can be consumed as a library by other projects in their tests
@@ -245,8 +328,8 @@ subprojects {
     testSupportArtifacts
   }
 
-  task testSupportJar (type: Jar) {
-    baseName = "${project.name}-support-test"
+  task testSupportJar(type: Jar) {
+    archiveBaseName = "${project.name}-support-test"
     from sourceSets.testSupport.output
   }
 
@@ -255,13 +338,17 @@ subprojects {
     integrationTestImplementation sourceSets.testSupport.output
   }
 
-  task integrationTest(type: Test, dependsOn:["compileTestJava"]){
+  task integrationTest(type: Test, dependsOn: ["compileTestJava"]) {
     group = "verification"
-    description = "Runs the EthSigner integration tests"
+    description = String.format("Runs the %s integration tests", projectName)
 
     testClassesDirs = sourceSets.integrationTest.output.classesDirs
     classpath = sourceSets.integrationTest.runtimeClasspath
     outputs.upToDateWhen { false }
+
+    jvmArgs = ['-Xms512m', '-Xmx1g']
+
+    useJUnitPlatform()
   }
 
   if (file('src/jmh').directory) {
@@ -295,13 +382,21 @@ applicationDefaultJvmArgs = [
   "-Dvertx.disableFileCPResolving=true",
   // We shutdown log4j ourselves, as otherwise his shutdown hook runs before our own and whatever
   // happens during shutdown is not logged.
-  "-Dlog4j.shutdownHookEnabled=false"
+  "-Dlog4j.shutdownHookEnabled=false",
+  // netty specific module warnings
+  "-Dio.netty.tryReflectionSetAccessible=true",
+  "--add-exports",
+  "java.base/jdk.internal.misc=ALL-UNNAMED",
+  "--add-opens",
+  "java.base/java.nio=ALL-UNNAMED"
 ]
 
 run {
-  args project.hasProperty("ethsigner.run.args") ? project.property("ethsigner.run.args").toString().split("\\s+") : []
+  args project.hasProperty(repositoryName + ".run.args") ? project.property(repositoryName + ".run.args").toString().split("\\s+") : []
   doFirst {
-    applicationDefaultJvmArgs = applicationDefaultJvmArgs.collect{it.replace('ETHSIGNER_HOME', "$buildDir/ethsigner")}
+    applicationDefaultJvmArgs = applicationDefaultJvmArgs.collect {
+      it.replace(projectHome, "$buildDir/" + repositoryName)
+    }
   }
 }
 
@@ -312,8 +407,8 @@ startScripts {
   }
 
   doLast {
-    unixScript.text = unixScript.text.replace('ETHSIGNER_HOME', '\$APP_HOME')
-    windowsScript.text = windowsScript.text.replace('ETHSIGNER_HOME', '%~dp0..')
+    unixScript.text = unixScript.text.replace(projectHome, '\$APP_HOME')
+    windowsScript.text = windowsScript.text.replace(projectHome, '%~dp0..')
 
     // Prevent the error originating from the 8191 chars limit on Windows
     windowsScript.text =
@@ -348,7 +443,7 @@ distTar {
     delete fileTree(dir: 'build/distributions', include: '*.tar.gz')
   }
   compression = Compression.GZIP
-  extension = 'tar.gz'
+  archiveExtension = 'tar.gz'
 }
 
 distZip {
@@ -357,23 +452,97 @@ distZip {
     delete fileTree(dir: 'build/distributions', include: '*.zip')
   }
 }
-/*
- task jacocoRootReport(type: org.gradle.testing.jacoco.tasks.JacocoReport) {
- additionalSourceDirs.from files(subprojects.sourceSets.main.allSource.srcDirs)
- sourceDirectories.from files(subprojects.sourceSets.main.allSource.srcDirs)
- classDirectories.from files(subprojects.sourceSets.main.output)
- executionData.from files(subprojects.jacocoTestReport.executionData) //how to exclude some package/classes com.test.**
- reports {
- xml.enabled true
- csv.enabled true
- html.destination file("build/reports/jacocoHtml")
- }
- onlyIf = { true }
- doFirst {
- executionData = files(executionData.findAll { it.exists() })
- }
- }
- */
+
+// rename the top level dir from <reponame>-<version> to <reponame> and this makes it really
+// simple for use in docker
+tasks.register("dockerDistUntar") {
+  dependsOn distTar
+  dependsOn distZip
+  def dockerBuildDir = "build/docker-" + repositoryName + "/"
+  def distTarFile = distTar.outputs.files.singleFile
+  def distTarFileName = distTar.outputs.files.singleFile.name.replace(".tar.gz", "")
+
+  doFirst {
+    new File(dockerBuildDir).mkdir()
+    copy {
+      from tarTree(distTarFile)
+      into(dockerBuildDir)
+    }
+    file("${dockerBuildDir}/${distTarFileName}").renameTo("${dockerBuildDir}/" + repositoryName)
+  }
+}
+
+task distDocker(type: Exec) {
+  dependsOn dockerDistUntar
+  def dockerBuildVersion = project.hasProperty('release.releaseVersion') ? project.property('release.releaseVersion') : "${rootProject.version}"
+  def imageName = "pegasyseng/" + repositoryName
+  def image = project.hasProperty('release.releaseVersion') ? "${imageName}:" + project.property('release.releaseVersion') : "${imageName}:${project.version}"
+  def dockerBuildDir = "build/docker-" + repositoryName + "/"
+  workingDir "${dockerBuildDir}"
+
+  doFirst {
+    copy {
+      from file("${projectDir}/docker/Dockerfile")
+      into(workingDir)
+    }
+  }
+
+  executable "sh"
+  args "-c", "docker build --build-arg BUILD_DATE=${buildTime()} --build-arg VERSION=${dockerBuildVersion} --build-arg VCS_REF=${getCheckedOutGitCommitHash()} -t ${image} ."
+}
+
+task testDocker(type: Exec) {
+  dependsOn distDocker
+  def dockerReportsDir = "docker/reports/"
+  def imageName = "pegasyseng/" + repositoryName
+  def image = project.hasProperty('release.releaseVersion') ? "${imageName}:" + project.property('release.releaseVersion') : "${imageName}:${project.version}"
+  workingDir "docker"
+
+  doFirst {
+    new File(dockerReportsDir).mkdir()
+  }
+
+  executable "sh"
+  args "-c", "bash test.sh ${image}"
+}
+
+task dockerUpload(type: Exec) {
+  dependsOn distDocker
+  def imageName = "pegasyseng/" + repositoryName
+  def image = project.hasProperty('release.releaseVersion') ? "${imageName}:" + project.property('release.releaseVersion') : "${imageName}:${project.version}"
+  def cmd = "docker push '${image}'"
+  def additionalTags = []
+
+  if (project.hasProperty('branch') && project.property('branch') == 'master') {
+    additionalTags.add('develop')
+  }
+
+  if (!(version ==~ /.*-SNAPSHOT/)) {
+    additionalTags.add('latest')
+    additionalTags.add(version.split(/\./)[0..1].join('.'))
+  }
+
+  additionalTags.each { tag -> cmd += " && docker tag '${image}' '${imageName}:${tag.trim()}' && docker push '${imageName}:${tag.trim()}'" }
+  executable "sh"
+  args "-c", cmd
+}
+
+task jacocoRootReport(type: org.gradle.testing.jacoco.tasks.JacocoReport) {
+  additionalSourceDirs.from files(subprojects.sourceSets.main.allSource.srcDirs)
+  sourceDirectories.from files(subprojects.sourceSets.main.allSource.srcDirs)
+  classDirectories.from files(subprojects.sourceSets.main.output)
+  executionData.from files(subprojects.jacocoTestReport.executionData)
+  //how to exclude some package/classes com.test.**
+  reports {
+    xml.enabled true
+    csv.enabled true
+    html.destination file("build/reports/jacocoHtml")
+  }
+  onlyIf = { true }
+  doFirst {
+    executionData = files(executionData.findAll { it.exists() })
+  }
+}
 
 configurations { annotationProcessor }
 
@@ -387,6 +556,14 @@ configurations { annotationProcessor }
  }
  }
  */
+
+// http://label-schema.org/rc1/
+// using the RFC3339 format "2016-04-12T23:20:50.52Z"
+def buildTime() {
+  def df = new SimpleDateFormat("yyyy-MM-dd'T'HH:mm'Z'")
+  df.setTimeZone(TimeZone.getTimeZone("UTC"))
+  return df.format(new Date())
+}
 
 // Takes the version, and if -SNAPSHOT is part of it replaces SNAPSHOT
 // with the git commit version.
@@ -414,7 +591,7 @@ def getCheckedOutGitCommitHash() {
   def head = new File(gitFolder + "HEAD").text.split(":") // .git/HEAD
   def isCommit = head.length == 1 // e5a7c79edabbf7dd39888442df081b1c9d8e88fd
 
-  if(isCommit) return head[0].trim().take(takeFromHash) // e5a7c79edabb
+  if (isCommit) return head[0].trim().take(takeFromHash) // e5a7c79edabb
 
   def refHead = new File(gitFolder + head[1].trim()) // .git/refs/heads/master
   refHead.text.trim().take takeFromHash
@@ -422,8 +599,8 @@ def getCheckedOutGitCommitHash() {
 
 apply plugin: 'net.researchgate.release'
 
-task releaseIntegrationTest(type: Test){
-  for(TaskContainer taskList : subprojects.tasks){
+task releaseIntegrationTest(type: Test) {
+  for (TaskContainer taskList : subprojects.tasks) {
     def subProjectIntegrationTask = taskList.findByName('integrationTest')
 
     if (subProjectIntegrationTask != null) {
@@ -432,7 +609,7 @@ task releaseIntegrationTest(type: Test){
   }
 }
 
-task releaseAcceptanceTest(type: Test, dependsOn : ':acceptance-tests:acceptanceTest') {}
+task releaseAcceptanceTest(type: Test, dependsOn: ':acceptance-tests:acceptanceTest') {}
 
 release {
   preTagCommitMessage = '[Gradle Release Plugin] - pre tag commit: '
@@ -454,31 +631,19 @@ release {
 apply plugin: 'com.jfrog.bintray'
 
 bintray {
-  user = project.hasProperty('bintrayUser') ? project.property('bintrayUser') : System.getenv('BINTRAY_USER')
-  key = project.hasProperty('bintrayApiKey') ? project.property('bintrayApiKey') : System.getenv('BINTRAY_KEY')
+  user = bintrayUser
+  key = bintrayKey
 
   filesSpec {
-    from distTar.destinationDir.path
-    from distZip.destinationDir.path
+    from distTar.destinationDirectory
+    from distZip.destinationDirectory
     into '.'
   }
 
   publish = true
+  override = version.endsWith('SNAPSHOT')
 
-  pkg {
-    repo = 'pegasys-repo'
-    name = 'ethsigner'
-    userOrg = 'consensys'
-    licenses = ['Apache-2.0']
-    websiteUrl = 'https://github.com/PegaSysEng/ethsigner'
-    issueTrackerUrl = 'https://github.com/PegaSysEng/ethsigner/issues'
-    vcsUrl = 'https://github.com/PegaSysEng/ethsigner.git'
-
-    version {
-      name = project.version
-      released  = new Date()
-    }
-  }
+  pkg = bintrayPackage
 }
 
 afterReleaseBuild.dependsOn bintrayUpload

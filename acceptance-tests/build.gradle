@@ -13,17 +13,22 @@
 
 dependencies {
 
-  testRuntime 'javax.activation:activation'
-  testRuntime 'org.apache.logging.log4j:log4j-core'
+  testRuntimeOnly 'javax.activation:activation'
+  testRuntimeOnly 'org.apache.logging.log4j:log4j-core'
+  testRuntimeOnly 'org.junit.jupiter:junit-jupiter-engine'
+  testRuntimeOnly 'org.bouncycastle:bcpkix-jdk15on'
 
   testImplementation project(':ethsigner:core')
+  testImplementation (group: 'tech.pegasys.signers.internal', name: 'signing-secp256k1-impl', classifier: 'test-fixtures')
+  testImplementation (group: 'tech.pegasys.signers.internal', name: 'keystorage-hashicorp', classifier: 'test-fixtures')
 
   testImplementation 'com.github.docker-java:docker-java'
-  testImplementation 'junit:junit'
+  testImplementation 'org.junit.jupiter:junit-jupiter-api'
   testImplementation 'io.vertx:vertx-core'
-  testImplementation 'org.web3j:core'
+  testImplementation 'io.vertx:vertx-web'
+  testImplementation 'org.apache.tuweni:tuweni-net'
   testImplementation 'org.web3j:crypto'
-  testImplementation 'org.web3j:eea'
+  testImplementation 'org.web3j:besu'
   testImplementation 'org.apache.logging.log4j:log4j-api'
   testImplementation 'org.assertj:assertj-core'
   testImplementation 'org.awaitility:awaitility'
@@ -35,5 +40,9 @@ task acceptanceTest(type: Test) {
   mustRunAfter rootProject.subprojects*.test
   description = 'Runs EthSigner acceptance tests.'
   group = 'verification'
+
+  useJUnitPlatform()
+  // toggle to show standard out and standard error of the test JVM(s) on the console
+  testLogging.showStandardStreams = false
 }
 acceptanceTest.dependsOn(rootProject.installDist)

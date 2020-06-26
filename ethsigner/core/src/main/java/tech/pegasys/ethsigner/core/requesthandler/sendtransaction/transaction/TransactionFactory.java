@@ -12,49 +12,105 @@
  */
 package tech.pegasys.ethsigner.core.requesthandler.sendtransaction.transaction;
 
-import static tech.pegasys.ethsigner.core.requesthandler.sendtransaction.transaction.EeaUtils.generatePrivacyGroupId;
-
 import tech.pegasys.ethsigner.core.jsonrpc.EeaSendTransactionJsonParameters;
 import tech.pegasys.ethsigner.core.jsonrpc.EthSendTransactionJsonParameters;
+import tech.pegasys.ethsigner.core.jsonrpc.JsonDecoder;
 import tech.pegasys.ethsigner.core.jsonrpc.JsonRpcRequest;
 import tech.pegasys.ethsigner.core.requesthandler.sendtransaction.NonceProvider;
 
-import org.web3j.protocol.Web3j;
-import org.web3j.protocol.eea.Eea;
+import java.util.List;
+
+import io.vertx.core.json.JsonObject;
+import io.vertx.ext.web.RoutingContext;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 
 public class TransactionFactory {
 
-  private final Eea eea;
-  private final Web3j web3j;
+  private static final Logger LOG = LogManager.getLogger();
 
-  public TransactionFactory(final Eea eea, final Web3j web3j) {
-    this.eea = eea;
-    this.web3j = web3j;
+  private final VertxNonceRequestTransmitterFactory nonceRequestTransmitterFactory;
+  private final JsonDecoder decoder;
+
+  public TransactionFactory(
+      final JsonDecoder decoder,
+      final VertxNonceRequestTransmitterFactory nonceRequestTransmitterFactory) {
+    this.nonceRequestTransmitterFactory = nonceRequestTransmitterFactory;
+    this.decoder = decoder;
   }
 
-  public Transaction createTransaction(final JsonRpcRequest request) {
+  public Transaction createTransaction(final RoutingContext context, final JsonRpcRequest request) {
     final String method = request.getMethod().toLowerCase();
+    final VertxNonceRequestTransmitter nonceRequestTransmitter =
+        nonceRequestTransmitterFactory.create(context.request().headers());
+
     switch (method) {
       case "eth_sendtransaction":
-        return createEthTransaction(request);
+        return createEthTransaction(request, nonceRequestTransmitter);
       case "eea_sendtransaction":
-        return createEeaTransaction(request);
+        return createEeaTransaction(request, nonceRequestTransmitter);
       default:
         throw new IllegalStateException("Unknown send transaction method " + method);
     }
   }
 
-  private Transaction createEeaTransaction(final JsonRpcRequest request) {
-    final EeaSendTransactionJsonParameters params = EeaSendTransactionJsonParameters.from(request);
-    final String privacyGroupId = generatePrivacyGroupId(params.privateFrom(), params.privateFor());
-    final NonceProvider nonceProvider =
-        new EeaWeb3jNonceProvider(eea, params.sender(), privacyGroupId);
-    return new EeaTransaction(params, nonceProvider, request.getId());
+  private Transaction createEthTransaction(
+      final JsonRpcRequest request, final VertxNonceRequestTransmitter requestTransmitter) {
+    final EthSendTransactionJsonParameters params =
+        fromRpcRequestToJsonParam(EthSendTransactionJsonParameters.class, request);
+
+    final NonceProvider ethNonceProvider =
+        new EthNonceProvider(params.sender(), requestTransmitter);
+    return new EthTransaction(params, ethNonceProvider, request.getId());
   }
 
-  private Transaction createEthTransaction(final JsonRpcRequest request) {
-    final EthSendTransactionJsonParameters params = EthSendTransactionJsonParameters.from(request);
-    final NonceProvider ethNonceProvider = new EthWeb3jNonceProvider(web3j, params.sender());
-    return new EthTransaction(params, ethNonceProvider, request.getId());
+  private Transaction createEeaTransaction(
+      final JsonRpcRequest request, final VertxNonceRequestTransmitter requestTransmitter) {
+
+    final EeaSendTransactionJsonParameters params =
+        fromRpcRequestToJsonParam(EeaSendTransactionJsonParameters.class, request);
+
+    if (params.privacyGroupId().isPresent() == params.privateFor().isPresent()) {
+      LOG.warn(
+          "Illegal private transaction received; privacyGroup (present = {}) and privateFor (present = {}) are mutually exclusive.",
+          params.privacyGroupId().isPresent(),
+          params.privateFor().isPresent());
+      throw new IllegalArgumentException("PrivacyGroup and PrivateFor are mutually exclusive.");
+    }
+
+    if (params.privacyGroupId().isPresent()) {
+      final NonceProvider nonceProvider =
+          new BesuPrivateNonceProvider(
+              params.sender(), params.privacyGroupId().get(), requestTransmitter);
+      return BesuPrivateTransaction.from(params, nonceProvider, request.getId());
+    }
+
+    final NonceProvider nonceProvider =
+        new EeaPrivateNonceProvider(
+            params.sender(), params.privateFrom(), params.privateFor().get(), requestTransmitter);
+    return EeaPrivateTransaction.from(params, nonceProvider, request.getId());
+  }
+
+  public <T> T fromRpcRequestToJsonParam(final Class<T> type, final JsonRpcRequest request) {
+
+    final Object object;
+    final Object params = request.getParams();
+    if (params instanceof List) {
+      @SuppressWarnings("unchecked")
+      final List<Object> paramList = (List<Object>) params;
+      if (paramList.size() != 1) {
+        throw new IllegalArgumentException(
+            type.getSimpleName()
+                + " json Rpc requires a single parameter, request contained "
+                + paramList.size());
+      }
+      object = paramList.get(0);
+    } else {
+      object = params;
+    }
+
+    final JsonObject receivedParams = JsonObject.mapFrom(object);
+
+    return decoder.decodeValue(receivedParams.toBuffer(), type);
   }
 }

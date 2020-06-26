@@ -17,10 +17,10 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import tech.pegasys.ethsigner.core.jsonrpc.response.JsonRpcErrorResponse;
 import tech.pegasys.ethsigner.tests.dsl.DockerClientFactory;
+import tech.pegasys.ethsigner.tests.dsl.node.BesuNode;
 import tech.pegasys.ethsigner.tests.dsl.node.Node;
 import tech.pegasys.ethsigner.tests.dsl.node.NodeConfiguration;
 import tech.pegasys.ethsigner.tests.dsl.node.NodeConfigurationBuilder;
-import tech.pegasys.ethsigner.tests.dsl.node.PantheonNode;
 import tech.pegasys.ethsigner.tests.dsl.signer.Signer;
 import tech.pegasys.ethsigner.tests.dsl.signer.SignerConfiguration;
 import tech.pegasys.ethsigner.tests.dsl.signer.SignerConfigurationBuilder;
@@ -29,9 +29,9 @@ import tech.pegasys.ethsigner.tests.dsl.signer.SignerResponse;
 import com.github.dockerjava.api.DockerClient;
 import io.netty.handler.codec.http.HttpHeaderNames;
 import io.netty.handler.codec.http.HttpResponseStatus;
-import org.junit.After;
-import org.junit.Before;
-import org.junit.Test;
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
 
 public class CorsAcceptanceTest {
 
@@ -42,13 +42,13 @@ public class CorsAcceptanceTest {
   private final String AUTHORISED_DOMAIN = "authorised.com";
   private final String UNAUTHORISED_DOMAIN = "UN" + AUTHORISED_DOMAIN;
 
-  @Before
+  @BeforeEach
   public void setUp() {
     final NodeConfiguration nodeConfig =
         new NodeConfigurationBuilder().cors(AUTHORISED_DOMAIN).build();
     final SignerConfiguration signerConfig = new SignerConfigurationBuilder().build();
 
-    ethNode = new PantheonNode(DOCKER, nodeConfig);
+    ethNode = new BesuNode(DOCKER, nodeConfig);
     ethNode.start();
     ethNode.awaitStartupCompletion();
 
@@ -57,7 +57,7 @@ public class CorsAcceptanceTest {
     ethSigner.awaitStartupCompletion();
   }
 
-  @After
+  @AfterEach
   public void tearDown() {
     if (ethNode != null) {
       ethNode.shutdown();
